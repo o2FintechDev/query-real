@@ -1,5 +1,5 @@
 /* ============================================================
-   QUERYREAL — INTERMEDIATE LEVEL BACKEND (v2 — River water quality)
+   QUERYREAL — INTERMEDIATE LEVEL BACKEND (v3 — River water quality, France)
    ------------------------------------------------------------
    Source: Hub'Eau API — River water quality
    https://hubeau.eaufrance.fr/api/v2/qualite_rivieres
@@ -21,8 +21,12 @@
    measurement — which is what makes a LEFT JOIN genuinely useful
    to demonstrate at this level.
 
-   Scope: rivers in the Île-de-France region (departments 75, 77,
-   78, 91, 92, 93, 94, 95), to keep the data volume manageable.
+   Scope: all of France, no department/commune filter (per Hub'Eau's
+   own documented example, scaled up to the whole country instead of
+   two named communes). Page size is set to the API's documented
+   maximum (20000). analyse_pc is still bounded by a start date
+   (date_debut_prelevement) to keep the payload a reasonable size,
+   since the underlying Naïades database holds many years of history.
 
    Same fallback strategy as the other levels: if the API is
    unavailable, fall back to a sample dataset with the same schema.
@@ -32,7 +36,6 @@
   "use strict";
 
   var BASE_URL = "https://hubeau.eaufrance.fr/api/v2/qualite_rivieres/";
-  var IDF_DEPARTMENTS = "75,77,78,91,92,93,94,95";
 
   // ------------------------------------------------------------------
   // 1. FALLBACK DATA (SAMPLE)
@@ -81,16 +84,42 @@
   // ------------------------------------------------------------------
   // 2. LIVE CALLS TO THE HUB'EAU API (2 calls = 2 tables)
   // ------------------------------------------------------------------
+  // A single page (even at the API's max size of 20000) only ever
+  // returns one arbitrary slice of a much larger national dataset, in
+  // whatever order the API applies by default — not a representative
+  // sample. To cover the whole country without filtering on anything
+  // (no department, no parameter), we follow the API's own pagination
+  // ("next" link) across several pages and aggregate the results.
+  async function fetchAllPages(firstUrl, maxPages) {
+    var all = [];
+    var url = firstUrl;
+    var pageCount = 0;
+    while (url && pageCount < maxPages) {
+      var res = await fetch(url);
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      var json = await res.json();
+      var data = json && json.data;
+      if (!Array.isArray(data)) throw new Error("Unexpected response (no data array)");
+      all = all.concat(data);
+      pageCount += 1;
+      // Temporary diagnostic logging — check the browser console (F12) to
+      // see the real total count reported by the API, how many pages were
+      // actually fetched, and whether "next" kept going or stopped early.
+      console.log(
+        "[hubeau] page " + pageCount + ": +" + data.length + " rows (total so far: " + all.length + "),",
+        "API count field:", json.count, ", next:", json.next
+      );
+      url = json.next || null;
+    }
+    return all;
+  }
+
   async function fetchStations() {
-    var url = BASE_URL + "station_pc" +
-      "?code_departement=" + IDF_DEPARTMENTS +
-      "&fields=code_station,libelle_station,libelle_commune,nom_cours_eau" +
-      "&size=1000&format=json";
-    var res = await fetch(url);
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    var json = await res.json();
-    var data = json && json.data;
-    if (!Array.isArray(data) || data.length === 0) {
+    var firstUrl = BASE_URL + "station_pc" +
+      "?fields=code_station,libelle_station,libelle_commune,nom_cours_eau" +
+      "&size=20000&format=json";
+    var data = await fetchAllPages(firstUrl, 3);
+    if (data.length === 0) {
       throw new Error("Empty or unexpected station_pc response");
     }
     var rows = data
@@ -109,17 +138,27 @@
     return rows;
   }
 
+  // Filtering by parameter is not an arbitrary restriction here — it's
+  // a necessity. The live site reports ~39 million analyses nationally
+  // for 2023-2026 alone (~236 distinct parameters tested per sampling
+  // operation: nitrates, but also pesticides, heavy metals,
+  // bacteriology...). No browser-side SQLite database can hold that.
+  // Restricting to the 4 parameters actually used in the challenges
+  // cuts the volume by roughly that same factor (~236x) without losing
+  // anything relevant, and without introducing any geographic bias.
+  var TRACKED_PARAMETERS = ["Nitrates", "Phosphore total", "Ammonium", "Temp\u00e9rature de l'eau"];
+
   async function fetchMeasurements() {
-    var url = BASE_URL + "analyse_pc" +
-      "?code_departement=" + IDF_DEPARTMENTS +
-      "&date_debut_prelevement=2023-01-01" +
+    var paramFilter = TRACKED_PARAMETERS.map(encodeURIComponent).join(",");
+    var firstUrl = BASE_URL + "analyse_pc" +
+      "?libelle_parametre=" + paramFilter +
+      "&date_debut_prelevement=2016-01-01" +
       "&fields=code_station,libelle_parametre,date_prelevement,resultat,symbole_unite" +
-      "&size=1000&format=json";
-    var res = await fetch(url);
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    var json = await res.json();
-    var data = json && json.data;
-    if (!Array.isArray(data) || data.length === 0) {
+      "&size=20000&format=json";
+    // Even filtered to 4 parameters, this can still span many pages
+    // nationally, so pagination stays in place as a safety net.
+    var data = await fetchAllPages(firstUrl, 5);
+    if (data.length === 0) {
       throw new Error("Empty or unexpected analyse_pc response");
     }
     var rows = data
@@ -168,7 +207,7 @@
       var results = await Promise.all([fetchStations(), fetchMeasurements()]);
       stations = results[0];
       measurements = results[1];
-      source = "live (Hub'Eau API — River water quality, Île-de-France)";
+      source = "live (Hub'Eau API — River water quality, France)";
     } catch (e) {
       console.warn("[backend-intermediate] API unavailable, falling back to sample data:", e.message);
       stations = FALLBACK_STATIONS.map(function (s) {

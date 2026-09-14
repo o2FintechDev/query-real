@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QueryReal</title>
+  <style>
+    :root {
+      --bg:       #080c10;
+      --surface:  #0f1923;
+      --border:   #1e2d3d;
+      --text:     #cdd9e5;
+      --muted:    #576f87;
+      --mono:     'Fira Code', 'Cascadia Code', monospace;
+      --sans:     'Segoe UI', system-ui, sans-serif;
+      --c-beginner:     #3fb950;
+      --c-intermediate: #58a6ff;
+      --c-advanced:     #d29922;
+      --c-expert:       #f0883e;
+      --c-mega:         #bc8cff;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+    }
+
+    .page { display: none !important; }
+    .page.active { display: flex !important; }
+
+    /* ── HOME PAGE ── */
+    #page-home {
+      min-height: 100vh;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 24px;
+      text-align: center;
+    }
+
+    .hero-badge {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 4px 14px;
+      margin-bottom: 28px;
+    }
+
+    .hero h1 {
+      font-family: var(--mono);
+      font-size: clamp(2.8rem, 7vw, 5.5rem);
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: -2px;
+      margin-bottom: 16px;
+    }
+    .hero h1 .query { color: #ffffff; }
+    .hero h1 .real  { color: var(--c-intermediate); }
+
+    .hero-sub {
+      font-size: 1.05rem;
+      color: var(--muted);
+      max-width: 480px;
+      line-height: 1.7;
+      margin-bottom: 48px;
+    }
+
+    .concept-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      max-width: 720px;
+      width: 100%;
+      margin-bottom: 48px;
+    }
+    .concept-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      text-align: left;
+    }
+    .concept-card .icon { font-size: 1.6rem; margin-bottom: 10px; }
+    .concept-card h3    { font-size: 0.88rem; font-weight: 600; margin-bottom: 6px; }
+    .concept-card p     { font-size: 0.78rem; color: var(--muted); line-height: 1.5; }
+
+    .cta-btn {
+      background: var(--c-intermediate);
+      color: #080c10;
+      font-family: var(--mono);
+      font-size: 0.95rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 8px;
+      padding: 14px 40px;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .cta-btn:hover { opacity: 0.85; }
+
+    /* ── LEVELS PAGE ── */
+    #page-levels {
+      min-height: 100vh;
+      flex-direction: column;
+      align-items: center;
+      padding: 60px 24px;
+    }
+
+    #page-levels h2 {
+      font-family: var(--mono);
+      font-size: clamp(1.6rem, 4vw, 2.4rem);
+      font-weight: 700;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+    #page-levels .subtitle {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-bottom: 48px;
+      text-align: center;
+    }
+
+    .back-btn {
+      align-self: flex-start;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.82rem;
+      border-radius: 6px;
+      padding: 7px 14px;
+      cursor: pointer;
+      margin-bottom: 40px;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .back-btn:hover { color: var(--text); border-color: var(--muted); }
+
+    .levels-list {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      width: 100%;
+      max-width: 540px;
+    }
+
+    .level-btn {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      cursor: pointer;
+      text-align: left;
+      width: 100%;
+      transition: border-color 0.15s, transform 0.12s;
+    }
+    .level-btn:hover { transform: translateX(4px); }
+    .level-btn.locked { opacity: 0.45; cursor: not-allowed; }
+    .level-btn.locked:hover { transform: none; }
+
+    .level-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .level-info { flex: 1; }
+    .level-info .name {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .level-info .desc {
+      font-size: 0.78rem;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+    .level-progress {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 2px 8px;
+    }
+    .level-arrow { color: var(--muted); font-size: 1.1rem; }
+
+    /* ── GAME PAGE ── */
+    #page-game {
+      min-height: 100vh;
+      flex-direction: column;
+      padding: 32px 24px;
+      max-width: 860px;
+      margin: 0 auto;
+      width: 100%;
+      position: relative; /* anchors the mobile edge tabs */
+    }
+    /* More horizontal room once the side panels sit next to the
+       editor instead of stacking above it — grows with the viewport
+       instead of stopping at a fixed width. */
+    @media (min-width: 1000px) {
+      #page-game { max-width: min(1800px, 96vw); }
+    }
+
+    .game-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 32px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .game-header-right { display: flex; align-items: center; gap: 10px; }
+
+    .game-level-badge {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      padding: 4px 14px;
+      border-radius: 20px;
+      font-weight: 600;
+    }
+
+    .game-challenge-counter {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 4px 14px;
+    }
+
+    .game-title {
+      font-family: var(--mono);
+      font-size: 1.4rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .game-description {
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.6;
+      margin-bottom: 20px;
+      max-width: 600px;
+    }
+
+    /* ── GAME LAYOUT: database panel / editor / SQL tips panel ── */
+    .game-layout {
+      position: relative;
+    }
+    .game-main {
+      width: 100%;
+      min-width: 0;
+    }
+
+    /* Side panels — on narrow screens these are off-canvas drawers
+       docked to the right edge, slid fully out of view. */
+    .side-panel {
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      right: 0;
+      width: min(86vw, 360px);
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      transform: translateX(100%);
+      transition: transform 0.25s ease;
+      z-index: 50;
+      overflow-y: auto;
+      padding: 18px;
+    }
+    .side-panel.open { transform: translateX(0); }
+
+    .side-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--c-intermediate);
+      margin-bottom: 10px;
+    }
+    .side-panel-close {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 6px;
+      width: 26px;
+      height: 26px;
+      cursor: pointer;
+      line-height: 1;
+    }
+
+    /* Mobile edge tabs: tap to slide the matching panel in from the right */
+    .edge-tabs {
+      position: fixed;
+      top: 50%;
+      right: 0;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 40;
+    }
+    .edge-tab {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-right: none;
+      border-radius: 8px 0 0 8px;
+      color: var(--c-intermediate);
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      line-height: 1.3;
+      padding: 10px 7px;
+      cursor: pointer;
+    }
+    .drawer-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+      z-index: 45;
+    }
+    .drawer-backdrop.open { opacity: 1; pointer-events: auto; }
+
+    /* Enough room: drop the drawers, show all three columns side by side.
+       Side panels widen with the viewport (up to a comfortable cap)
+       instead of staying pinned at a fixed width, and the whole row
+       centers itself so extra space on very large screens doesn't
+       just pile up on one side. */
+    @media (min-width: 1000px) {
+      .game-layout {
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        gap: clamp(20px, 2.5vw, 40px);
+      }
+      .game-main { flex: 1 1 520px; max-width: 860px; order: 2; }
+      .side-panel {
+        position: static;
+        transform: none;
+        transition: none;
+        width: clamp(260px, 21vw, 420px);
+        flex-shrink: 0;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        max-height: none;
+      }
+      .side-panel-left  { order: 1; }
+      .side-panel-right { order: 3; }
+      .side-panel-close { display: none; }
+      .edge-tabs, .drawer-backdrop { display: none; }
+    }
+
+    .side-panel-content h4 {
+      font-size: 0.8rem;
+      color: var(--text);
+      margin-bottom: 6px;
+      margin-top: 14px;
+    }
+    .side-panel-content h4:first-child { margin-top: 0; }
+    .side-panel-content p, .side-panel-content li {
+      font-size: 0.8rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .side-panel-content ul { padding-left: 18px; margin-bottom: 4px; }
+    .edu-schema {
+      font-family: var(--mono);
+      font-size: 0.76rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 12px;
+      margin: 6px 0 10px 0;
+      color: var(--c-intermediate);
+      white-space: pre-wrap;
+    }
+    .edu-concept {
+      border-left: 2px solid var(--border);
+      padding: 6px 0 6px 10px;
+      margin-bottom: 8px;
+    }
+    .edu-concept .term {
+      font-family: var(--mono);
+      color: var(--c-expert);
+      font-weight: 700;
+      font-size: 0.8rem;
+    }
+    .edu-concept .example {
+      font-family: var(--mono);
+      font-size: 0.74rem;
+      color: var(--c-beginner);
+      margin-top: 2px;
+    }
+
+    .editor-label {
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    textarea {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 0.9rem;
+      line-height: 1.7;
+      padding: 16px;
+      resize: vertical;
+      min-height: 130px;
+      outline: none;
+      transition: border-color 0.15s;
+      margin-bottom: 16px;
+    }
+    textarea:focus { border-color: var(--c-intermediate); }
+
+    .game-actions { display: flex; gap: 10px; margin-bottom: 24px; flex-wrap: wrap; }
+
+    .btn-run {
+      background: var(--c-intermediate);
+      color: #080c10;
+      font-family: var(--mono);
+      font-size: 0.88rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 24px;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .btn-run:hover { opacity: 0.85; }
+
+    .btn-clear {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.85rem;
+      border-radius: 8px;
+      padding: 10px 18px;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .btn-clear:hover { color: var(--text); border-color: var(--muted); }
+
+    .btn-next {
+      background: var(--c-beginner);
+      color: #080c10;
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 20px;
+      cursor: pointer;
+      display: none;
+    }
+
+    .result-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px 20px;
+      font-size: 0.85rem;
+      color: var(--muted);
+      font-family: var(--mono);
+      min-height: 60px;
+      line-height: 1.6;
+      margin-bottom: 16px;
+    }
+    .result-box.ok  { border-color: var(--c-beginner); color: var(--c-beginner); }
+    .result-box.err { border-color: #f85149; color: #f85149; }
+
+    .result-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--mono);
+      font-size: 0.82rem;
+    }
+    .result-table th, .result-table td {
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      text-align: left;
+    }
+    .result-table th {
+      color: var(--c-intermediate);
+      background: rgba(88,166,255,0.08);
+    }
+  </style>
+</head>
+<body>
+
+<!-- HOME PAGE -->
+<div id="page-home" class="page active">
+  <div class="hero" style="display:flex;flex-direction:column;align-items:center;">
+    <div class="hero-badge">Learn SQL by playing</div>
+    <h1><span class="query">Query</span><span class="real">Real</span></h1>
+    <p class="hero-sub">
+      SQL challenges on real data.<br>
+      Practice querying databases across themed worlds.
+    </p>
+    <div class="concept-grid">
+      <div class="concept-card">
+        <div class="icon">🗄️</div>
+        <h3>Real data</h3>
+        <p>Datasets inspired by the real world: demographics, trade, sports…</p>
+      </div>
+      <div class="concept-card">
+        <div class="icon">🧩</div>
+        <h3>Progressive challenges</h3>
+        <p>5 queries per level, from basic SELECT to joins and subqueries.</p>
+      </div>
+      <div class="concept-card">
+        <div class="icon">⚡</div>
+        <h3>Instant feedback</h3>
+        <p>Every query is checked instantly by comparing results.</p>
+      </div>
+    </div>
+    <button class="cta-btn" id="btn-choose-level">Choose my level →</button>
+  </div>
+</div>
+
+<!-- LEVELS PAGE -->
+<div id="page-levels" class="page">
+  <button class="back-btn" id="btn-back-home">← Back</button>
+  <h2>What's your level?</h2>
+  <p class="subtitle">Complete all 5 challenges in a level to unlock the next one.</p>
+  <div class="levels-list">
+    <button class="level-btn" id="btn-beginner" data-level="beginner">
+      <span class="level-dot" style="background:#3fb950"></span>
+      <div class="level-info">
+        <div class="name" style="color:#3fb950">Beginner <span class="level-progress" id="progress-beginner"></span></div>
+        <div class="desc">SELECT, FROM, WHERE, ORDER BY, LIMIT — your first queries.</div>
+      </div>
+      <span class="level-arrow">→</span>
+    </button>
+    <button class="level-btn" id="btn-intermediate" data-level="intermediate">
+      <span class="level-dot" style="background:#58a6ff"></span>
+      <div class="level-info">
+        <div class="name" style="color:#58a6ff">Intermediate <span class="level-progress" id="progress-intermediate"></span></div>
+        <div class="desc">GROUP BY, JOIN, aggregations.</div>
+      </div>
+      <span class="level-arrow">→</span>
+    </button>
+    <button class="level-btn" id="btn-advanced" data-level="advanced">
+      <span class="level-dot" style="background:#d29922"></span>
+      <div class="level-info">
+        <div class="name" style="color:#d29922">Advanced <span class="level-progress" id="progress-advanced"></span></div>
+        <div class="desc">Subqueries, CTEs, window functions.</div>
+      </div>
+      <span class="level-arrow">→</span>
+    </button>
+    <button class="level-btn" id="btn-expert" data-level="expert">
+      <span class="level-dot" style="background:#f0883e"></span>
+      <div class="level-info">
+        <div class="name" style="color:#f0883e">Expert <span class="level-progress" id="progress-expert"></span></div>
+        <div class="desc">Optimization, advanced queries on large volumes.</div>
+      </div>
+      <span class="level-arrow">→</span>
+    </button>
+    <button class="level-btn" id="btn-mega" data-level="mega">
+      <span class="level-dot" style="background:#bc8cff"></span>
+      <div class="level-info">
+        <div class="name" style="color:#bc8cff">Mega Expert <span class="level-progress" id="progress-mega"></span></div>
+        <div class="desc">Elite challenges. Few make it through. Are you ready?</div>
+      </div>
+      <span class="level-arrow">→</span>
+    </button>
+  </div>
+</div>
+
+<!-- GAME PAGE -->
+<div id="page-game" class="page">
+  <div class="game-header">
+    <button class="back-btn" id="btn-back-levels" style="margin-bottom:0">← Change level</button>
+    <div class="game-header-right">
+      <span class="game-challenge-counter" id="game-challenge-counter">Challenge 1 / 5</span>
+      <span class="game-level-badge" id="game-badge">Beginner</span>
+    </div>
+  </div>
+
+  <div class="game-layout">
+
+    <!-- LEFT (desktop) / right-hand slide-in drawer (mobile): database info -->
+    <aside class="side-panel side-panel-left" id="panel-database">
+      <div class="side-panel-header">
+        <span>📊 Database</span>
+        <button class="side-panel-close" id="panel-database-close" aria-label="Close">✕</button>
+      </div>
+      <div class="side-panel-content" id="database-content"></div>
+    </aside>
+
+    <!-- CENTER: the actual challenge, always visible, always full focus -->
+    <div class="game-main">
+      <div class="game-title" id="game-title">Challenge 1</div>
+      <div class="game-description" id="game-description"></div>
+      <div class="editor-label">Your SQL query</div>
+      <textarea id="sql-input" placeholder="Write your SQL query here..."></textarea>
+      <div class="game-actions">
+        <button class="btn-clear" id="btn-prev">← Previous challenge</button>
+        <button class="btn-run" id="btn-run">▶ Run</button>
+        <button class="btn-clear" id="btn-clear">Clear</button>
+        <button class="btn-next" id="btn-next">Next challenge →</button>
+      </div>
+      <div class="result-box" id="result-box">Write your query and click Run.</div>
+    </div>
+
+    <!-- RIGHT (desktop) / right-hand slide-in drawer (mobile): SQL tips -->
+    <aside class="side-panel side-panel-right" id="panel-tips">
+      <div class="side-panel-header">
+        <span>🧠 SQL Tips</span>
+        <button class="side-panel-close" id="panel-tips-close" aria-label="Close">✕</button>
+      </div>
+      <div class="side-panel-content" id="tips-content"></div>
+    </aside>
+
+  </div>
+
+  <!-- Mobile-only edge tabs: tap to slide a panel in from the right -->
+  <div class="edge-tabs">
+    <button class="edge-tab" id="edge-tab-database">📊<br>DB</button>
+    <button class="edge-tab" id="edge-tab-tips">🧠<br>Tips</button>
+  </div>
+  <div class="drawer-backdrop" id="drawer-backdrop"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+<script src="backend-beginner.js"></script>
+<script src="backend-intermediate.js"></script>
+<script>
+/* ============================================================
+   LEVEL DEFINITIONS
+   ------------------------------------------------------------
+   Each level has:
+   - database     : database description for the educational panel
+   - concepts     : SQL concepts introduced, with an explanation + example
+   - backendLoader: name of the global function that loads the database
+                    (null if the level doesn't have a backend yet)
+   - challenges   : list of 5 challenges { title, description, starter,
+                    reference, hint }
+                    `reference` is the reference query (hidden from the
+                    player), executed on the fly against the SAME
+                    database as the player's, to generate the expected
+                    result and compare it.
+   ============================================================ */
+var levelsOrder = ['beginner', 'intermediate', 'advanced', 'expert', 'mega'];
+
+var levels = {
+
+  beginner: {
+    label: 'Beginner', color: '#3fb950',
+    backendLoader: 'loadBeginnerDB',
+    database: {
+      name: 'Communes of France',
+      source: 'Administrative Boundaries API — <code>geo.api.gouv.fr</code> (Etalab / DINUM)',
+      link: 'https://geo.api.gouv.fr/communes',
+      tables: ['city'],
+      description: 'Every commune in France with a known population (name, department, population) — around 35,000 communes.',
+      schema: 'city(insee_code, name, department_code, population)'
+    },
+    concepts: [
+      { term: 'SELECT', explanation: 'Chooses which columns to display in the result.', example: 'SELECT name FROM city;' },
+      { term: 'FROM', explanation: 'Specifies the table to fetch data from.', example: 'SELECT * FROM city;' },
+      { term: 'WHERE', explanation: 'Filters rows based on a condition.', example: 'WHERE population > 300000' },
+      { term: 'ORDER BY', explanation: 'Sorts the result (ASC = ascending, DESC = descending).', example: 'ORDER BY population DESC' },
+      { term: 'LIMIT', explanation: 'Keeps only the first N rows of the result.', example: 'LIMIT 5' },
+      { term: 'IN (...)', explanation: 'Checks whether a value belongs to a list — handy for filtering on several values at once instead of chaining ORs.', example: "WHERE department_code IN ('59', '62')" }
+    ],
+    challenges: [
+      {
+        title: 'Challenge 1 — Select everything',
+        description: 'Fetch every column from the <code>city</code> table.',
+        starter: 'SELECT *\nFROM city;',
+        reference: 'SELECT * FROM city;'
+      },
+      {
+        title: 'Challenge 2 — Filter with WHERE',
+        description: 'Show the name and population (<code>name</code>, <code>population</code>) of cities with more than 300,000 residents.',
+        starter: 'SELECT name, population\nFROM city\nWHERE population > 300000;',
+        reference: 'SELECT name, population FROM city WHERE population > 300000;',
+        hint: 'Think about a condition on population using WHERE.'
+      },
+      {
+        title: 'Challenge 3 — Sort with ORDER BY',
+        description: 'Show the name and population of every city, from most populated to least populated.',
+        starter: 'SELECT name, population\nFROM city\nORDER BY population DESC;',
+        reference: 'SELECT name, population FROM city ORDER BY population DESC;',
+        orderMatters: true,
+        hint: 'DESC for descending order.'
+      },
+      {
+        title: 'Challenge 4 — Combine ORDER BY and LIMIT',
+        description: "Show France's 5 most populated cities (name + population), from largest to smallest.",
+        starter: 'SELECT name, population\nFROM city\nORDER BY population DESC\nLIMIT 5;',
+        reference: 'SELECT name, population FROM city ORDER BY population DESC LIMIT 5;',
+        orderMatters: true,
+        hint: 'ORDER BY before LIMIT.'
+      },
+      {
+        title: 'Challenge 5 — Put it all together',
+        description: "Show the 3 largest cities in the Hauts-de-France region (departments <code>02, 59, 60, 62, 80</code>), sorted by population in descending order.",
+        starter: "SELECT name, population\nFROM city\nWHERE department_code IN ('02', '59', '60', '62', '80')\nORDER BY population DESC\nLIMIT 3;",
+        reference: "SELECT name, population FROM city WHERE department_code IN ('02', '59', '60', '62', '80') ORDER BY population DESC LIMIT 3;",
+        orderMatters: true,
+        hint: "IN ('02', '59', '60', '62', '80') to filter on several departments at once, then sort and limit."
+      }
+    ]
+  },
+
+  intermediate: {
+    label: 'Intermediate', color: '#58a6ff',
+    backendLoader: 'loadIntermediateDB',
+    database: {
+      name: 'River water quality in Île-de-France',
+      source: "Hub'Eau API — River water quality (BRGM / OFB / French Ministry for Ecological Transition, Naïades dataset)",
+      link: 'https://hubeau.eaufrance.fr/page/api-qualite-cours-deau',
+      tables: ['station', 'measurement'],
+      description: "Two separate API calls: the sampling stations on rivers in Île-de-France (reference table), and the physico-chemical measurement results (nitrates, phosphorus, temperature...) taken from samples collected at those stations (fact table).",
+      schema:
+        'station(station_code, station_name, city_name, river)\n' +
+        'measurement(station_code, parameter, sample_date, result, unit)'
+    },
+    concepts: [
+      { term: 'GROUP BY', explanation: 'Groups rows that share the same value in a column, to compute a statistic per group.', example: 'GROUP BY parameter' },
+      { term: 'COUNT(*)', explanation: 'Counts the number of rows in each group.', example: 'SELECT parameter, COUNT(*) FROM measurement GROUP BY parameter;' },
+      { term: 'AVG(column)', explanation: 'Calculates the average of a column.', example: 'AVG(result)' },
+      { term: 'MAX(column) / MIN(column)', explanation: 'Returns the largest (or smallest) value in a column.', example: 'MAX(result)' },
+      { term: 'JOIN ... ON ...', explanation: 'Combines two tables on a column common to both — here, the fact table (measurement) and the reference table (station).', example: 'measurement m JOIN station s ON m.station_code = s.station_code' }
+    ],
+    challenges: [
+      {
+        title: 'Challenge 1 — Count by group',
+        description: 'How many measurements were taken for each tracked <code>parameter</code> (nitrates, phosphorus...)? Sort from the highest count to the lowest.',
+        starter: 'SELECT parameter, COUNT(*)\nFROM measurement\nGROUP BY parameter\nORDER BY COUNT(*) DESC;',
+        reference: 'SELECT parameter, COUNT(*) FROM measurement GROUP BY parameter ORDER BY COUNT(*) DESC;',
+        orderMatters: true,
+        hint: 'GROUP BY parameter, then COUNT(*).'
+      },
+      {
+        title: 'Challenge 2 — Average per group',
+        description: 'What is the average measured concentration (<code>result</code>) for each parameter? Sort from highest to lowest.',
+        starter: 'SELECT parameter, AVG(result) AS average\nFROM measurement\nGROUP BY parameter\nORDER BY average DESC;',
+        reference: 'SELECT parameter, AVG(result) FROM measurement GROUP BY parameter ORDER BY AVG(result) DESC;',
+        orderMatters: true,
+        hint: 'AVG(result) instead of COUNT(*).'
+      },
+      {
+        title: 'Challenge 3 — Filter, then find a maximum',
+        description: "What is the maximum measured value for the <code>'Nitrates'</code> parameter?",
+        starter: "SELECT MAX(result)\nFROM measurement\nWHERE parameter = 'Nitrates';",
+        reference: "SELECT MAX(result) FROM measurement WHERE parameter = 'Nitrates';",
+        hint: 'WHERE first, then MAX without GROUP BY here (a single overall maximum).'
+      },
+      {
+        title: 'Challenge 4 — Your first join',
+        description: "Show the station name, the parameter measured, the result, and the name of the river (not its code) the station is located on.",
+        starter: 'SELECT s.station_name, m.parameter, m.result, s.river\nFROM measurement m\nJOIN station s ON m.station_code = s.station_code;',
+        reference: 'SELECT s.station_name, m.parameter, m.result, s.river FROM measurement m JOIN station s ON m.station_code = s.station_code;',
+        hint: 'JOIN station s ON m.station_code = s.station_code'
+      },
+      {
+        title: 'Challenge 5 — Put it all together',
+        description: 'Which 3 rivers (<code>river</code>) have the highest average Nitrates concentration?',
+        starter: "SELECT s.river, AVG(m.result) AS average\nFROM measurement m\nJOIN station s ON m.station_code = s.station_code\nWHERE m.parameter = 'Nitrates'\nGROUP BY s.river\nORDER BY average DESC\nLIMIT 3;",
+        reference: "SELECT s.river, AVG(m.result) FROM measurement m JOIN station s ON m.station_code = s.station_code WHERE m.parameter = 'Nitrates' GROUP BY s.river ORDER BY AVG(m.result) DESC LIMIT 3;",
+        orderMatters: true,
+        hint: 'JOIN + WHERE + GROUP BY + ORDER BY + LIMIT, like the previous challenge, plus one extra filter.'
+      }
+    ]
+  },
+
+  advanced: {
+    label: 'Advanced', color: '#d29922',
+    backendLoader: null,
+    database: {
+      name: '(coming soon) Election results or fuel prices',
+      source: 'data.gouv.fr',
+      description: 'This level will introduce subqueries, CTEs (WITH), and window functions (RANK, ROW_NUMBER) on a French dataset still to be finalized.',
+      schema: '(schema not defined yet)'
+    },
+    concepts: [
+      { term: 'Subquery', explanation: 'A SELECT query nested inside another one.', example: 'WHERE population > (SELECT AVG(population) FROM city)' },
+      { term: 'WITH (CTE)', explanation: 'Names a subquery so it can be reused more easily.', example: 'WITH top AS (SELECT ...) SELECT * FROM top;' },
+      { term: 'RANK() / ROW_NUMBER()', explanation: 'Numbers rows according to an order, per group if needed.', example: 'RANK() OVER (PARTITION BY department ORDER BY population DESC)' }
+    ],
+    challenges: [
+      {
+        title: 'Challenge 1 — Coming soon',
+        description: "This level doesn't have a database or challenges connected yet. The next step for the project is to choose the final dataset and write the matching backend.",
+        starter: ''
+      }
+    ]
+  },
+
+  expert: {
+    label: 'Expert', color: '#f0883e',
+    backendLoader: null,
+    database: {
+      name: '(coming soon) Public health data over time',
+      source: 'data.gouv.fr / Santé publique France',
+      description: 'This level will introduce time-series analysis, stacked CTEs, and functions like LAG/LEAD to compute growth rates.',
+      schema: '(schema not defined yet)'
+    },
+    concepts: [
+      { term: 'Stacked CTEs', explanation: 'Several successive WITH clauses, each building on the previous one.', example: 'WITH a AS (...), b AS (SELECT ... FROM a) SELECT * FROM b;' },
+      { term: 'LAG() / LEAD()', explanation: 'Fetches the value from the previous or next row, useful for comparing a period to the one before it.', example: 'LAG(value) OVER (ORDER BY year)' }
+    ],
+    challenges: [
+      {
+        title: 'Challenge 1 — Coming soon',
+        description: "This level doesn't have a database or challenges connected yet.",
+        starter: ''
+      }
+    ]
+  },
+
+  mega: {
+    label: 'Mega Expert', color: '#bc8cff',
+    backendLoader: null,
+    database: {
+      name: '(coming soon) SNCF punctuality or road accidents',
+      source: 'data.sncf.com or data.gouv.fr (BAAC)',
+      description: "This level will introduce anomaly detection (deviation from the mean / standard deviation) and complex multi-CTE queries. Technical note: SQLite has no native STDDEV, so it will need to be computed by hand via a subquery on the mean.",
+      schema: '(schema not defined yet)'
+    },
+    concepts: [
+      { term: 'Standard deviation (computed by hand)', explanation: "SQLite has no STDDEV function: compute the mean, then the mean of the squared deviations.", example: 'AVG((value - mean) * (value - mean))' }
+    ],
+    challenges: [
+      {
+        title: 'Challenge 1 — Coming soon',
+        description: "This level doesn't have a database or challenges connected yet.",
+        starter: ''
+      }
+    ]
+  }
+};
+
+/* ============================================================
+   PROGRESS TRACKING (localStorage)
+   ============================================================ */
+var PROGRESS_KEY = 'queryreal_progress_v2';
+
+function loadAllProgress() {
+  try {
+    var raw = localStorage.getItem(PROGRESS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveAllProgress(all) {
+  try { localStorage.setItem(PROGRESS_KEY, JSON.stringify(all)); } catch (e) { /* ignore quota errors */ }
+}
+
+function getProgress(levelId) {
+  var all = loadAllProgress();
+  var lvl = levels[levelId];
+  if (!all[levelId]) {
+    all[levelId] = {
+      challengeIndex: 0,
+      completed: lvl.challenges.map(function () { return false; }),
+      answers: lvl.challenges.map(function () { return ''; })
+    };
+  }
+  // Migration: progress saved before "answers" was added
+  if (!all[levelId].answers) {
+    all[levelId].answers = lvl.challenges.map(function () { return ''; });
+  }
+  return all[levelId];
+}
+
+function setProgress(levelId, progress) {
+  var all = loadAllProgress();
+  all[levelId] = progress;
+  saveAllProgress(all);
+}
+
+function isLevelCompleted(levelId) {
+  var p = getProgress(levelId);
+  return p.completed.length > 0 && p.completed.every(function (c) { return c; });
+}
+
+function isLevelUnlocked(levelId) {
+  var idx = levelsOrder.indexOf(levelId);
+  if (idx <= 0) return true; // first level is always open
+  var previous = levelsOrder[idx - 1];
+  return isLevelCompleted(previous);
+}
+
+/* ============================================================
+   UPDATE THE "LEVELS" PAGE (locks + progress)
+   ============================================================ */
+function updateLevelsPageUI() {
+  levelsOrder.forEach(function (id) {
+    var btn = document.getElementById('btn-' + id);
+    var badge = document.getElementById('progress-' + id);
+    var p = getProgress(id);
+    var doneCount = p.completed.filter(function (c) { return c; }).length;
+    var total = levels[id].challenges.length;
+    var unlocked = isLevelUnlocked(id);
+
+    if (badge) {
+      badge.textContent = unlocked ? (doneCount + ' / ' + total) : '🔒';
+    }
+    if (btn) {
+      if (unlocked) {
+        btn.classList.remove('locked');
+      } else {
+        btn.classList.add('locked');
+      }
+    }
+  });
+}
+
+/* ============================================================
+   PAGE NAVIGATION
+   ============================================================ */
+function showPage(id) {
+  var pages = document.querySelectorAll('.page');
+  for (var i = 0; i < pages.length; i++) {
+    pages[i].classList.remove('active');
+  }
+  document.getElementById('page-' + id).classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+/* ============================================================
+   LOADING SQL.JS DATABASES (one per level, cached)
+   ============================================================ */
+var dbCache = {};
+var dbPromiseCache = {};
+
+function ensureDB(levelId) {
+  var lvl = levels[levelId];
+  if (!lvl.backendLoader) return Promise.resolve(null);
+  if (dbCache[levelId]) return Promise.resolve(dbCache[levelId]);
+  if (dbPromiseCache[levelId]) return dbPromiseCache[levelId];
+  var loaderFn = window[lvl.backendLoader];
+  dbPromiseCache[levelId] = loaderFn().then(function (db) {
+    dbCache[levelId] = db;
+    return db;
+  });
+  return dbPromiseCache[levelId];
+}
+
+/* ============================================================
+   DATABASE PANEL & SQL TIPS PANEL
+   ------------------------------------------------------------
+   Rendered into two separate containers so they can live either
+   as static side columns (desktop) or as independent slide-in
+   drawers (mobile) — same content, different CSS positioning.
+   ============================================================ */
+function renderDatabasePanel(level) {
+  var html = '<h4>' + level.database.name + '</h4>';
+  html += '<p><strong>Source:</strong> ' + level.database.source;
+  if (level.database.link) {
+    html += ' — <a href="' + level.database.link + '" target="_blank" rel="noopener" style="color:var(--c-intermediate);">' + level.database.link + '</a>';
+  }
+  html += '</p>';
+  html += '<p>' + level.database.description + '</p>';
+  if (level.database.tables && level.database.tables.length) {
+    html += '<p><strong>Table' + (level.database.tables.length > 1 ? 's' : '') + ' to use in your queries:</strong> ' +
+      level.database.tables.map(function (t) { return '<code>' + t + '</code>'; }).join(', ') + '</p>';
+  }
+  html += '<div class="edu-schema">' + level.database.schema.replace(/\n/g, '<br>') + '</div>';
+  document.getElementById('database-content').innerHTML = html;
+}
+
+function renderTipsPanel(level) {
+  var html = '';
+  level.concepts.forEach(function (c) {
+    html += '<div class="edu-concept"><span class="term">' + c.term + '</span> — ' + c.explanation +
+      '<div class="example">' + c.example + '</div></div>';
+  });
+  document.getElementById('tips-content').innerHTML = html;
+}
+
+/* ============================================================
+   MOBILE DRAWERS (database panel / SQL tips panel)
+   ============================================================ */
+function openDrawer(panelId) {
+  document.getElementById(panelId).classList.add('open');
+  document.getElementById('drawer-backdrop').classList.add('open');
+}
+
+function closeDrawers() {
+  document.getElementById('panel-database').classList.remove('open');
+  document.getElementById('panel-tips').classList.remove('open');
+  document.getElementById('drawer-backdrop').classList.remove('open');
+}
+
+/* ============================================================
+   RENDERING A CHALLENGE
+   ============================================================ */
+var currentLevel = 'beginner';
+var currentChallengeIndex = 0;
+
+function showGame(level) {
+  if (!isLevelUnlocked(level)) {
+    alert('🔒 Finish the previous level first to unlock this one.');
+    return;
+  }
+
+  var lvl = levels[level];
+  var progress = getProgress(level);
+  currentLevel = level;
+  currentChallengeIndex = Math.min(progress.challengeIndex, lvl.challenges.length - 1);
+
+  renderDatabasePanel(lvl);
+  renderTipsPanel(lvl);
+  closeDrawers(); // start each level/challenge view with both drawers closed on mobile
+
+  var badge = document.getElementById('game-badge');
+  badge.textContent = lvl.label;
+  badge.style.background = lvl.color + '22';
+  badge.style.color = lvl.color;
+  badge.style.border = '1px solid ' + lvl.color;
+
+  document.getElementById('btn-run').style.background = lvl.color;
+  document.getElementById('btn-next').style.display = 'none';
+
+  renderChallenge();
+  showPage('game');
+}
+
+function goToChallenge(idx) {
+  var progress = getProgress(currentLevel);
+  var maxReachable = progress.challengeIndex;
+  if (idx < 0 || idx > maxReachable) return;
+  currentChallengeIndex = idx;
+  renderChallenge();
+}
+
+function updateNavButtons() {
+  var lvl = levels[currentLevel];
+  var progress = getProgress(currentLevel);
+  var isCompleted = progress.completed[currentChallengeIndex];
+
+  var prevBtn = document.getElementById('btn-prev');
+  prevBtn.style.display = currentChallengeIndex > 0 ? 'inline-block' : 'none';
+
+  var nextBtn = document.getElementById('btn-next');
+  if (!isCompleted) {
+    // The current challenge hasn't been validated yet: the "next" button
+    // only reappears after a correct answer (see onChallengeSuccess).
+    nextBtn.style.display = 'none';
+    return;
+  }
+
+  var isLastChallenge = currentChallengeIndex === lvl.challenges.length - 1;
+  nextBtn.style.display = 'inline-block';
+  if (isLastChallenge) {
+    nextBtn.textContent = 'View levels →';
+    nextBtn.onclick = function () { showPage('levels'); };
+  } else {
+    nextBtn.textContent = 'Next challenge →';
+    nextBtn.onclick = function () { goToChallenge(currentChallengeIndex + 1); };
+  }
+}
+
+function renderChallenge() {
+  var lvl = levels[currentLevel];
+  var challenge = lvl.challenges[currentChallengeIndex];
+  var progress = getProgress(currentLevel);
+
+  document.getElementById('game-challenge-counter').textContent =
+    'Challenge ' + (currentChallengeIndex + 1) + ' / ' + lvl.challenges.length;
+  document.getElementById('game-title').textContent = challenge.title;
+  document.getElementById('game-description').innerHTML = challenge.description;
+  // No pre-filled query: empty for a challenge never attempted, or the
+  // already-validated query if the player comes back to a previous challenge.
+  document.getElementById('sql-input').value = progress.answers[currentChallengeIndex] || '';
+
+  updateNavButtons();
+
+  var box = document.getElementById('result-box');
+  box.className = 'result-box';
+
+  if (lvl.backendLoader) {
+    box.textContent = '⏳ Loading database…';
+    ensureDB(currentLevel).then(function (db) {
+      var src = db.__queryRealDataSource || 'unknown';
+      box.textContent = '✅ Database ready (' + src + ' data). Write your query and click Run.';
+    }).catch(function (e) {
+      box.textContent = '❌ Error loading database: ' + e.message;
+      box.className = 'result-box err';
+    });
+  } else {
+    box.textContent = "This level doesn't have a connected database yet.";
+  }
+}
+
+/* ============================================================
+   RESULT COMPARISON (challenge validation)
+   ============================================================ */
+function normalizeValue(v) {
+  if (typeof v === 'number') return Math.round(v * 10000) / 10000;
+  if (v === null || v === undefined) return null;
+  return String(v).trim();
+}
+
+function normalizeRows(values, keepOrder) {
+  var stringified = values
+    .map(function (row) { return row.map(normalizeValue); })
+    .map(function (row) { return JSON.stringify(row); });
+  return keepOrder ? stringified : stringified.slice().sort();
+}
+
+function extractExec(execResult) {
+  if (!execResult || execResult.length === 0) return { columns: [], values: [] };
+  return execResult[0];
+}
+
+function resultsMatch(userExec, refExec, orderMatters) {
+  var u = extractExec(userExec);
+  var r = extractExec(refExec);
+  if (u.values.length !== r.values.length) return false;
+  // Column count must match, including when both results are empty
+  // (0 rows): otherwise two structurally different queries that both
+  // happen to return 0 rows would be wrongly accepted (this was
+  // observed with a fact table left empty by mistake).
+  if (u.columns.length !== r.columns.length) return false;
+  if (u.values.length === 0) return true;
+  var normU = normalizeRows(u.values, orderMatters);
+  var normR = normalizeRows(r.values, orderMatters);
+  for (var i = 0; i < normU.length; i++) {
+    if (normU[i] !== normR[i]) return false;
+  }
+  return true;
+}
+
+/* ============================================================
+   RUNNING A QUERY
+   ============================================================ */
+var RESULT_DISPLAY_CAP = 200;
+
+function renderResultTable(box, columns, values) {
+  if (values.length === 0) {
+    box.innerHTML = '(0 rows)';
+    return;
+  }
+  var truncated = values.length > RESULT_DISPLAY_CAP;
+  var displayed = truncated ? values.slice(0, RESULT_DISPLAY_CAP) : values;
+  var html = '<table class="result-table"><tr>';
+  columns.forEach(function (c) { html += '<th>' + c + '</th>'; });
+  html += '</tr>';
+  displayed.forEach(function (row) {
+    html += '<tr>';
+    row.forEach(function (v) { html += '<td>' + v + '</td>'; });
+    html += '</tr>';
+  });
+  html += '</table>';
+  if (truncated) {
+    html += '<p style="margin-top:8px;color:var(--muted);font-size:0.78rem;">' +
+      '(display limited to the first ' + RESULT_DISPLAY_CAP + ' rows out of ' + values.length +
+      ' — challenge validation, however, takes every row into account)</p>';
+  }
+  box.innerHTML = html;
+}
+
+function onChallengeSuccess(submittedQuery) {
+  var lvl = levels[currentLevel];
+  var progress = getProgress(currentLevel);
+  progress.completed[currentChallengeIndex] = true;
+  progress.answers[currentChallengeIndex] = submittedQuery;
+
+  var isLastChallenge = currentChallengeIndex === lvl.challenges.length - 1;
+  if (!isLastChallenge) {
+    progress.challengeIndex = currentChallengeIndex + 1;
+  }
+  setProgress(currentLevel, progress);
+  updateLevelsPageUI();
+  updateNavButtons();
+
+  var box = document.getElementById('result-box');
+
+  if (isLastChallenge) {
+    var nextIdx = levelsOrder.indexOf(currentLevel) + 1;
+    var nextLabel = nextIdx < levelsOrder.length ? levels[levelsOrder[nextIdx]].label : null;
+    box.className = 'result-box ok';
+    box.innerHTML = '🎉 Level "' + lvl.label + '" completed!' +
+      (nextLabel ? ' The "' + nextLabel + '" level is now unlocked.' : ' That was the last level, well done!');
+  } else {
+    box.className = 'result-box ok';
+    box.innerHTML = '✅ Correct answer! Challenge ' + (currentChallengeIndex + 1) + ' validated.';
+  }
+}
+
+function runQuery() {
+  var q = document.getElementById('sql-input').value.trim();
+  var box = document.getElementById('result-box');
+
+  if (!q) {
+    box.textContent = '⚠️ Write a query before running it.';
+    box.className = 'result-box err';
+    return;
+  }
+
+  var lvl = levels[currentLevel];
+  var challenge = lvl.challenges[currentChallengeIndex];
+
+  if (!lvl.backendLoader || !challenge.reference) {
+    box.textContent = "⏳ This level doesn't have automatic grading connected yet.";
+    box.className = 'result-box';
+    return;
+  }
+
+  var db = dbCache[currentLevel];
+  if (!db) {
+    box.textContent = '⏳ The database is still loading, try again in a moment.';
+    box.className = 'result-box';
+    return;
+  }
+
+  var userExec;
+  try {
+    userExec = db.exec(q);
+  } catch (e) {
+    box.className = 'result-box err';
+    box.textContent = '❌ SQL error: ' + e.message;
+    return;
+  }
+
+  var refExec;
+  try {
+    refExec = db.exec(challenge.reference);
+  } catch (e) {
+    console.error('[QueryReal] The reference query failed:', e);
+    box.className = 'result-box err';
+    box.textContent = '❌ Internal validation error, try again or report this challenge.';
+    return;
+  }
+
+  var uRes = extractExec(userExec);
+  box.className = 'result-box';
+  var tableHtml = document.createElement('div');
+  renderResultTable(tableHtml, uRes.columns, uRes.values);
+
+  if (resultsMatch(userExec, refExec, !!challenge.orderMatters)) {
+    onChallengeSuccess(q);
+    document.getElementById('result-box').className = 'result-box ok';
+    document.getElementById('result-box').innerHTML =
+      document.getElementById('result-box').innerHTML + '<hr style="border-color:var(--border);margin:10px 0;">' + tableHtml.innerHTML;
+  } else {
+    box.className = 'result-box err';
+    var msg = "❌ Your query runs but doesn't return the expected result.";
+    if (challenge.hint) msg += '<br><em>Hint: ' + challenge.hint + '</em>';
+    box.innerHTML = msg + '<hr style="border-color:var(--border);margin:10px 0;">' + tableHtml.innerHTML;
+  }
+}
+
+/* ============================================================
+   EVENTS
+   ============================================================ */
+document.addEventListener('DOMContentLoaded', function () {
+  updateLevelsPageUI();
+
+  document.getElementById('btn-choose-level').addEventListener('click', function () {
+    updateLevelsPageUI();
+    showPage('levels');
+  });
+  document.getElementById('btn-back-home').addEventListener('click', function () { showPage('home'); });
+  document.getElementById('btn-back-levels').addEventListener('click', function () {
+    updateLevelsPageUI();
+    showPage('levels');
+  });
+
+  levelsOrder.forEach(function (id) {
+    document.getElementById('btn-' + id).addEventListener('click', function () { showGame(id); });
+  });
+
+  document.getElementById('btn-run').addEventListener('click', runQuery);
+
+  document.getElementById('btn-prev').addEventListener('click', function () {
+    goToChallenge(currentChallengeIndex - 1);
+  });
+
+  document.getElementById('btn-clear').addEventListener('click', function () {
+    document.getElementById('sql-input').value = '';
+    var box = document.getElementById('result-box');
+    box.textContent = 'Write your query and click Run.';
+    box.className = 'result-box';
+    document.getElementById('sql-input').focus();
+  });
+
+  // Mobile edge tabs: tap to slide the matching panel in from the right.
+  document.getElementById('edge-tab-database').addEventListener('click', function () {
+    openDrawer('panel-database');
+  });
+  document.getElementById('edge-tab-tips').addEventListener('click', function () {
+    openDrawer('panel-tips');
+  });
+  document.getElementById('panel-database-close').addEventListener('click', closeDrawers);
+  document.getElementById('panel-tips-close').addEventListener('click', closeDrawers);
+  document.getElementById('drawer-backdrop').addEventListener('click', closeDrawers);
+});
+</script>
+</body>
+</html>

@@ -20,6 +20,8 @@
       --c-mega:         #bc8cff;
     }
 
+    html, body { overflow-x: hidden; }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
@@ -40,6 +42,12 @@
       justify-content: center;
       padding: 60px 24px;
       text-align: center;
+    }
+
+    @media (max-width: 600px) {
+      #page-home { padding: 40px 18px; }
+      .concept-grid { grid-template-columns: 1fr; }
+      .hero h1 { letter-spacing: -1px; }
     }
 
     .hero-badge {
@@ -493,6 +501,12 @@
     .result-box.ok  { border-color: var(--c-beginner); color: var(--c-beginner); }
     .result-box.err { border-color: #f85149; color: #f85149; }
 
+    .table-scroll {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      margin: -4px -4px 0 -4px;
+      padding: 4px;
+    }
     .result-table {
       width: 100%;
       border-collapse: collapse;
@@ -503,6 +517,7 @@
       border: 1px solid var(--border);
       padding: 6px 10px;
       text-align: left;
+      white-space: nowrap;
     }
     .result-table th {
       color: var(--c-intermediate);
@@ -617,7 +632,7 @@
       <div class="game-title" id="game-title">Challenge 1</div>
       <div class="game-description" id="game-description"></div>
       <div class="editor-label">Your SQL query</div>
-      <textarea id="sql-input" placeholder="Write your SQL query here..."></textarea>
+      <textarea id="sql-input" placeholder="Write your SQL query here..." autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off"></textarea>
       <div class="game-actions">
         <button class="btn-clear" id="btn-prev">← Previous challenge</button>
         <button class="btn-run" id="btn-run">▶ Run</button>
@@ -1165,7 +1180,7 @@ function renderResultTable(box, columns, values) {
   }
   var truncated = values.length > RESULT_DISPLAY_CAP;
   var displayed = truncated ? values.slice(0, RESULT_DISPLAY_CAP) : values;
-  var html = '<table class="result-table"><tr>';
+  var html = '<div class="table-scroll"><table class="result-table"><tr>';
   columns.forEach(function (c) { html += '<th>' + c + '</th>'; });
   html += '</tr>';
   displayed.forEach(function (row) {
@@ -1173,7 +1188,7 @@ function renderResultTable(box, columns, values) {
     row.forEach(function (v) { html += '<td>' + v + '</td>'; });
     html += '</tr>';
   });
-  html += '</table>';
+  html += '</table></div>';
   if (truncated) {
     html += '<p style="margin-top:8px;color:var(--muted);font-size:0.78rem;">' +
       '(display limited to the first ' + RESULT_DISPLAY_CAP + ' rows out of ' + values.length +
@@ -1210,8 +1225,20 @@ function onChallengeSuccess(submittedQuery) {
   }
 }
 
+// Mobile keyboards (especially iOS) often replace straight quotes/
+// apostrophes with their typographic equivalent (' -> ' ', " -> " ")
+// via autocorrect. SQLite doesn't recognize those as string delimiters,
+// which silently breaks queries. Normalize them here.
+function normalizeSqlQuotes(q) {
+  return q
+    .replace(/[\u2018\u2019\u02BC]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"');
+}
+
 function runQuery() {
-  var q = document.getElementById('sql-input').value.trim();
+  var input = document.getElementById('sql-input');
+  var q = normalizeSqlQuotes(input.value.trim());
+  input.value = q; // reflect the correction on screen so it's transparent
   var box = document.getElementById('result-box');
 
   if (!q) {

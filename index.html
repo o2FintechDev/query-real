@@ -714,7 +714,11 @@ var levels = {
       { term: 'WHERE', explanation: 'Filters rows based on a condition.', example: 'WHERE population > 300000' },
       { term: 'ORDER BY', explanation: 'Sorts the result (ASC = ascending, DESC = descending).', example: 'ORDER BY population DESC' },
       { term: 'LIMIT', explanation: 'Keeps only the first N rows of the result.', example: 'LIMIT 5' },
-      { term: 'IN (...)', explanation: 'Checks whether a value belongs to a list — handy for filtering on several values at once instead of chaining ORs.', example: "WHERE department_code IN ('59', '62')" }
+      { term: 'IN (...)', explanation: 'Checks whether a value belongs to a list — handy for filtering on several values at once instead of chaining ORs.', example: "WHERE department_code IN ('59', '62')" },
+      { term: 'GROUP BY', explanation: 'Groups rows that share the same value in a column, to compute a statistic per group.', example: 'GROUP BY department_code' },
+      { term: 'COUNT(*)', explanation: 'Counts the number of rows in each group.', example: 'SELECT department_code, COUNT(*) FROM city GROUP BY department_code;' },
+      { term: 'AVG(column)', explanation: 'Calculates the average of a column.', example: 'AVG(population)' },
+      { term: 'MAX(column) / MIN(column)', explanation: 'Returns the largest (or smallest) value in a column.', example: 'MAX(population)' }
     ],
     challenges: [
       {
@@ -753,6 +757,43 @@ var levels = {
         reference: "SELECT name, population FROM city WHERE department_code IN ('02', '59', '60', '62', '80') ORDER BY population DESC LIMIT 3;",
         orderMatters: true,
         hint: "IN ('02', '59', '60', '62', '80') to filter on several departments at once, then sort and limit."
+      },
+      {
+        title: 'Challenge 6 — Count per group',
+        description: 'How many cities does each department (<code>department_code</code>) have? Sort from the highest count to the lowest.',
+        starter: 'SELECT department_code, COUNT(*)\nFROM city\nGROUP BY department_code\nORDER BY COUNT(*) DESC;',
+        reference: 'SELECT department_code, COUNT(*) FROM city GROUP BY department_code ORDER BY COUNT(*) DESC;',
+        orderMatters: true,
+        hint: 'GROUP BY department_code, then COUNT(*).'
+      },
+      {
+        title: 'Challenge 7 — Find a maximum',
+        description: 'What is the population of the single most populated city in France?',
+        starter: 'SELECT MAX(population)\nFROM city;',
+        reference: 'SELECT MAX(population) FROM city;',
+        hint: 'MAX(population) with no GROUP BY here — a single overall maximum.'
+      },
+      {
+        title: 'Challenge 8 — Find a minimum',
+        description: 'Among cities with more than 100,000 residents, what is the smallest population?',
+        starter: 'SELECT MIN(population)\nFROM city\nWHERE population > 100000;',
+        reference: 'SELECT MIN(population) FROM city WHERE population > 100000;',
+        hint: 'WHERE first, then MIN.'
+      },
+      {
+        title: 'Challenge 9 — Average with a filter',
+        description: 'What is the average population of cities with more than 50,000 residents?',
+        starter: 'SELECT AVG(population)\nFROM city\nWHERE population > 50000;',
+        reference: 'SELECT AVG(population) FROM city WHERE population > 50000;',
+        hint: 'Same pattern as the previous challenge, with AVG instead of MIN.'
+      },
+      {
+        title: 'Challenge 10 — Put it all together',
+        description: 'Which 3 departments have the highest average city population? Show the department code and the average, sorted from highest to lowest.',
+        starter: 'SELECT department_code, AVG(population) AS average\nFROM city\nGROUP BY department_code\nORDER BY average DESC\nLIMIT 3;',
+        reference: 'SELECT department_code, AVG(population) FROM city GROUP BY department_code ORDER BY AVG(population) DESC LIMIT 3;',
+        orderMatters: true,
+        hint: 'GROUP BY + AVG + ORDER BY + LIMIT — combine everything from this level.'
       }
     ]
   },
@@ -771,50 +812,92 @@ var levels = {
         'measurement(station_code, parameter, sample_date, result, unit)'
     },
     concepts: [
-      { term: 'GROUP BY', explanation: 'Groups rows that share the same value in a column, to compute a statistic per group.', example: 'GROUP BY parameter' },
-      { term: 'COUNT(*)', explanation: 'Counts the number of rows in each group.', example: 'SELECT parameter, COUNT(*) FROM measurement GROUP BY parameter;' },
-      { term: 'AVG(column)', explanation: 'Calculates the average of a column.', example: 'AVG(result)' },
-      { term: 'MAX(column) / MIN(column)', explanation: 'Returns the largest (or smallest) value in a column.', example: 'MAX(result)' },
-      { term: 'JOIN ... ON ...', explanation: 'Combines two tables on a column common to both — here, the fact table (measurement) and the reference table (station).', example: 'measurement m JOIN station s ON m.station_code = s.station_code' }
+      { term: 'CREATE TABLE ... AS SELECT', explanation: 'Creates a brand-new table and fills it with the result of a query in one step — a common way to materialize an analysis so it can be reused.', example: "CREATE TABLE recent_readings AS\nSELECT * FROM measurement WHERE parameter = 'Nitrates';" },
+      { term: 'JOIN ... ON ...', explanation: 'Combines rows from two tables based on a column common to both — here, the fact table (measurement) and the reference table (station).', example: 'measurement m JOIN station s ON m.station_code = s.station_code' },
+      { term: 'JOIN types: INNER vs LEFT vs RIGHT vs FULL', explanation: "A plain JOIN is short for INNER JOIN: it only keeps rows that have a match in both tables — a station with zero measurements simply disappears. LEFT JOIN keeps every row from the table on the left even without a match (missing columns become NULL). RIGHT JOIN does the same but keeps every row from the table on the right instead. FULL OUTER JOIN keeps every row from both sides. This game's SQLite engine supports all four, but LEFT JOIN is by far the most common in practice — it's what you reach for whenever you don't want to silently lose rows that don't have a match.", example: 'station s LEFT JOIN measurement m ON s.station_code = m.station_code' }
     ],
     challenges: [
       {
-        title: 'Challenge 1 — Count by group',
-        description: 'How many measurements were taken for each tracked <code>parameter</code> (nitrates, phosphorus...)? Sort from the highest count to the lowest.',
-        starter: 'SELECT parameter, COUNT(*)\nFROM measurement\nGROUP BY parameter\nORDER BY COUNT(*) DESC;',
-        reference: 'SELECT parameter, COUNT(*) FROM measurement GROUP BY parameter ORDER BY COUNT(*) DESC;',
-        orderMatters: true,
-        hint: 'GROUP BY parameter, then COUNT(*).'
+        type: 'create',
+        title: 'Challenge 1 — Your first CREATE TABLE',
+        description: 'Create a new table called <code>nitrate_readings</code> containing only the rows from <code>measurement</code> where the parameter is Nitrates.',
+        starter: "CREATE TABLE nitrate_readings AS\nSELECT *\nFROM measurement\nWHERE parameter = 'Nitrates';",
+        targetTable: 'nitrate_readings',
+        selectBody: "SELECT * FROM measurement WHERE parameter = 'Nitrates'",
+        hint: 'CREATE TABLE nitrate_readings AS SELECT ... — the new table gets both the structure and the data of the query result.'
       },
       {
-        title: 'Challenge 2 — Average per group',
-        description: 'What is the average measured concentration (<code>result</code>) for each parameter? Sort from highest to lowest.',
-        starter: 'SELECT parameter, AVG(result) AS average\nFROM measurement\nGROUP BY parameter\nORDER BY average DESC;',
-        reference: 'SELECT parameter, AVG(result) FROM measurement GROUP BY parameter ORDER BY AVG(result) DESC;',
-        orderMatters: true,
-        hint: 'AVG(result) instead of COUNT(*).'
+        type: 'create',
+        title: 'Challenge 2 — CREATE TABLE from an aggregate',
+        description: 'Create a table called <code>station_avg</code> with the average measured result per station (columns: <code>station_code</code>, <code>avg_result</code>).',
+        starter: 'CREATE TABLE station_avg AS\nSELECT station_code, AVG(result) AS avg_result\nFROM measurement\nGROUP BY station_code;',
+        targetTable: 'station_avg',
+        selectBody: 'SELECT station_code, AVG(result) AS avg_result FROM measurement GROUP BY station_code',
+        hint: 'Same CREATE TABLE ... AS SELECT pattern, this time built on a GROUP BY query.'
       },
       {
-        title: 'Challenge 3 — Filter, then find a maximum',
-        description: "What is the maximum measured value for the <code>'Nitrates'</code> parameter?",
-        starter: "SELECT MAX(result)\nFROM measurement\nWHERE parameter = 'Nitrates';",
-        reference: "SELECT MAX(result) FROM measurement WHERE parameter = 'Nitrates';",
-        hint: 'WHERE first, then MAX without GROUP BY here (a single overall maximum).'
-      },
-      {
-        title: 'Challenge 4 — Your first join',
-        description: "Show the station name, the parameter measured, the result, and the name of the river (not its code) the station is located on.",
+        title: 'Challenge 3 — Your first JOIN',
+        description: 'Show the station name, the parameter measured, the result, and the name of the river (not its code) the station is located on.',
         starter: 'SELECT s.station_name, m.parameter, m.result, s.river\nFROM measurement m\nJOIN station s ON m.station_code = s.station_code;',
         reference: 'SELECT s.station_name, m.parameter, m.result, s.river FROM measurement m JOIN station s ON m.station_code = s.station_code;',
         hint: 'JOIN station s ON m.station_code = s.station_code'
       },
       {
-        title: 'Challenge 5 — Put it all together',
-        description: 'Which 3 rivers (<code>river</code>) have the highest average Nitrates concentration?',
+        title: 'Challenge 4 — JOIN with a filter',
+        description: 'Show the station name and result for Nitrates measurements only, along with the river name.',
+        starter: "SELECT s.station_name, m.result, s.river\nFROM measurement m\nJOIN station s ON m.station_code = s.station_code\nWHERE m.parameter = 'Nitrates';",
+        reference: "SELECT s.station_name, m.result, s.river FROM measurement m JOIN station s ON m.station_code = s.station_code WHERE m.parameter = 'Nitrates';",
+        hint: 'Add a WHERE clause on m.parameter after the JOIN.'
+      },
+      {
+        title: 'Challenge 5 — LEFT JOIN',
+        description: 'For every station, show its name and how many measurements exist for it — including stations with zero measurements. Sort from fewest to most.<br><br><em>Reminder: a plain JOIN might return the exact same result here — but only because every station in the current dataset happens to have at least one measurement. That\'s incidental, not something your query guarantees. This challenge specifically requires <code>LEFT JOIN</code>.</em>',
+        starter: 'SELECT s.station_name, COUNT(m.station_code) AS measurement_count\nFROM station s\nLEFT JOIN measurement m ON s.station_code = m.station_code\nGROUP BY s.station_name\nORDER BY measurement_count ASC;',
+        reference: 'SELECT s.station_name, COUNT(m.station_code) FROM station s LEFT JOIN measurement m ON s.station_code = m.station_code GROUP BY s.station_name ORDER BY COUNT(m.station_code) ASC;',
+        orderMatters: true,
+        requiredKeyword: 'LEFT JOIN',
+        hint: 'Use LEFT JOIN, not a plain JOIN — it keeps every station even with no match, and COUNT(m.station_code) correctly returns 0 for those (unlike COUNT(*), which would count 1 regardless).'
+      },
+      {
+        title: 'Challenge 6 — JOIN + GROUP BY',
+        description: 'What is the average measured result per river, across all 4 tracked parameters combined? Show the river and the average, sorted from highest to lowest.',
+        starter: 'SELECT s.river, AVG(m.result) AS average\nFROM measurement m\nJOIN station s ON m.station_code = s.station_code\nGROUP BY s.river\nORDER BY average DESC;',
+        reference: 'SELECT s.river, AVG(m.result) FROM measurement m JOIN station s ON m.station_code = s.station_code GROUP BY s.river ORDER BY AVG(m.result) DESC;',
+        orderMatters: true,
+        hint: 'Same GROUP BY + AVG pattern as before, now combined with a JOIN — no WHERE filter this time, so every parameter counts.'
+      },
+      {
+        title: 'Challenge 7 — Put it together so far',
+        description: 'Which 3 rivers have the highest average Nitrates concentration?',
         starter: "SELECT s.river, AVG(m.result) AS average\nFROM measurement m\nJOIN station s ON m.station_code = s.station_code\nWHERE m.parameter = 'Nitrates'\nGROUP BY s.river\nORDER BY average DESC\nLIMIT 3;",
         reference: "SELECT s.river, AVG(m.result) FROM measurement m JOIN station s ON m.station_code = s.station_code WHERE m.parameter = 'Nitrates' GROUP BY s.river ORDER BY AVG(m.result) DESC LIMIT 3;",
         orderMatters: true,
-        hint: 'JOIN + WHERE + GROUP BY + ORDER BY + LIMIT, like the previous challenge, plus one extra filter.'
+        hint: 'JOIN + WHERE + GROUP BY + ORDER BY + LIMIT, like challenge 6, plus one extra filter.'
+      },
+      {
+        type: 'create',
+        title: 'Challenge 8 — Materialize a JOIN analysis',
+        description: 'Create a table called <code>river_quality_summary</code> (columns <code>river</code>, <code>avg_nitrates</code>) combining both tables via a JOIN, so you can query it directly in later challenges.',
+        starter: "CREATE TABLE river_quality_summary AS\nSELECT s.river AS river, AVG(m.result) AS avg_nitrates\nFROM measurement m\nJOIN station s ON m.station_code = s.station_code\nWHERE m.parameter = 'Nitrates'\nGROUP BY s.river;",
+        targetTable: 'river_quality_summary',
+        selectBody: "SELECT s.river AS river, AVG(m.result) AS avg_nitrates FROM measurement m JOIN station s ON m.station_code = s.station_code WHERE m.parameter = 'Nitrates' GROUP BY s.river",
+        hint: 'This is the same JOIN + GROUP BY + AVG you just wrote in challenge 7, wrapped in a CREATE TABLE ... AS.'
+      },
+      {
+        title: 'Challenge 9 — Query your new table',
+        description: 'Using the <code>river_quality_summary</code> table you just created, which river has the lowest average Nitrates concentration (the best water quality)? Show its name and value.',
+        starter: 'SELECT river, avg_nitrates\nFROM river_quality_summary\nORDER BY avg_nitrates ASC\nLIMIT 1;',
+        reference: 'SELECT river, avg_nitrates FROM river_quality_summary ORDER BY avg_nitrates ASC LIMIT 1;',
+        setup: [{ table: 'river_quality_summary', selectBody: "SELECT s.river AS river, AVG(m.result) AS avg_nitrates FROM measurement m JOIN station s ON m.station_code = s.station_code WHERE m.parameter = 'Nitrates' GROUP BY s.river" }],
+      },
+      {
+        title: 'Challenge 10 — Join your own table back',
+        description: 'Combine <code>river_quality_summary</code> with <code>station</code> (JOIN on river) to list, for each river in the summary, one matching station name alongside its average Nitrates value. Sort from best to worst water quality.',
+        starter: 'SELECT rqs.river, s.station_name, rqs.avg_nitrates\nFROM river_quality_summary rqs\nJOIN station s ON rqs.river = s.river\nORDER BY rqs.avg_nitrates ASC;',
+        reference: 'SELECT rqs.river, s.station_name, rqs.avg_nitrates FROM river_quality_summary rqs JOIN station s ON rqs.river = s.river ORDER BY rqs.avg_nitrates ASC;',
+        orderMatters: true,
+        setup: [{ table: 'river_quality_summary', selectBody: "SELECT s.river AS river, AVG(m.result) AS avg_nitrates FROM measurement m JOIN station s ON m.station_code = s.station_code WHERE m.parameter = 'Nitrates' GROUP BY s.river" }],
+        hint: 'Join the table you created back to station, using the river name as the common column this time — not station_code.'
       }
     ]
   },
@@ -889,7 +972,7 @@ var levels = {
 /* ============================================================
    PROGRESS TRACKING (localStorage)
    ============================================================ */
-var PROGRESS_KEY = 'queryreal_progress_v2';
+var PROGRESS_KEY = 'queryreal_progress_v3';
 
 function loadAllProgress() {
   try {
@@ -981,6 +1064,19 @@ function showPage(id) {
    ============================================================ */
 var dbCache = {};
 var dbPromiseCache = {};
+
+// Explicitly checks sqlite_master before creating a table, instead of
+// relying on "CREATE TABLE IF NOT EXISTS ... AS SELECT" — this sql.js
+// build's SQLite engine doesn't reliably honor IF NOT EXISTS combined
+// with AS SELECT (observed throwing "table already exists" instead of
+// silently skipping), so we check-then-create ourselves.
+function ensureTableExists(db, table, selectBody) {
+  var check = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='" + table + "';");
+  var exists = check.length > 0 && check[0].values.length > 0;
+  if (!exists) {
+    db.run('CREATE TABLE ' + table + ' AS ' + selectBody + ';');
+  }
+}
 
 function ensureDB(levelId) {
   var lvl = levels[levelId];
@@ -1132,6 +1228,14 @@ function renderChallenge() {
     box.textContent = '⏳ Loading database…';
     ensureDB(currentLevel).then(function (db) {
       var src = db.__queryRealDataSource || 'unknown';
+      // Some challenges depend on a table created in an earlier challenge
+      // (e.g. re-querying it after a page reload, when the earlier CREATE
+      // TABLE wasn't re-run in this session). Recreate it idempotently.
+      if (challenge.setup) {
+        challenge.setup.forEach(function (dep) {
+          try { ensureTableExists(db, dep.table, dep.selectBody); } catch (e) { console.error('[QueryReal] Challenge setup failed:', e); }
+        });
+      }
       box.textContent = '✅ Database ready (' + src + ' data). Write your query and click Run.';
     }).catch(function (e) {
       box.textContent = '❌ Error loading database: ' + e.message;
@@ -1248,6 +1352,78 @@ function normalizeSqlQuotes(q) {
     .replace(/[\u201C\u201D]/g, '"');
 }
 
+// For 'create' challenges: instead of comparing a query's result set,
+// we check that the player's statement actually created the expected
+// table, then compare that table's content against a hidden reference
+// table built from the same selectBody — created lazily via
+// ensureTableExists, so it's safe to call on every attempt.
+function runCreateTableChallenge(db, challenge, q) {
+  var box = document.getElementById('result-box');
+  var target = challenge.targetTable;
+  var refTable = '__ref_' + target;
+
+  // Allow retries: wipe any previous attempt at this table first.
+  try { db.run('DROP TABLE IF EXISTS ' + target + ';'); } catch (e) { /* ignore */ }
+
+  try {
+    db.exec(q);
+  } catch (e) {
+    box.className = 'result-box err';
+    box.textContent = '❌ SQL error: ' + e.message;
+    return;
+  }
+
+  var check;
+  try {
+    check = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='" + target + "';");
+  } catch (e) {
+    check = null;
+  }
+  if (!check || check.length === 0 || check[0].values.length === 0) {
+    box.className = 'result-box err';
+    var missingMsg = '❌ Your query ran, but no table named <code>' + target + '</code> was created.';
+    if (challenge.hint) missingMsg += '<br><em>Hint: ' + challenge.hint + '</em>';
+    box.innerHTML = missingMsg;
+    return;
+  }
+
+  try {
+    ensureTableExists(db, refTable, challenge.selectBody);
+  } catch (e) {
+    console.error('[QueryReal] Reference setup failed:', e);
+    box.className = 'result-box err';
+    box.textContent = '❌ Internal validation error, try again or report this challenge.';
+    return;
+  }
+
+  var userExec, refExec;
+  try {
+    userExec = db.exec('SELECT * FROM ' + target + ';');
+    refExec = db.exec('SELECT * FROM ' + refTable + ';');
+  } catch (e) {
+    box.className = 'result-box err';
+    box.textContent = '❌ Internal validation error, try again or report this challenge.';
+    return;
+  }
+
+  var uRes = extractExec(userExec);
+  box.className = 'result-box';
+  var tableHtml = document.createElement('div');
+  renderResultTable(tableHtml, uRes.columns, uRes.values);
+
+  if (resultsMatch(userExec, refExec, !!challenge.orderMatters)) {
+    onChallengeSuccess(q);
+    document.getElementById('result-box').className = 'result-box ok';
+    document.getElementById('result-box').innerHTML =
+      document.getElementById('result-box').innerHTML + '<hr style="border-color:var(--border);margin:10px 0;">' + tableHtml.innerHTML;
+  } else {
+    box.className = 'result-box err';
+    var mismatchMsg = '❌ Table <code>' + target + '</code> was created, but its content doesn\'t match what\'s expected.';
+    if (challenge.hint) mismatchMsg += '<br><em>Hint: ' + challenge.hint + '</em>';
+    box.innerHTML = mismatchMsg + '<hr style="border-color:var(--border);margin:10px 0;">' + tableHtml.innerHTML;
+  }
+}
+
 function runQuery() {
   var input = document.getElementById('sql-input');
   var q = normalizeSqlQuotes(input.value.trim());
@@ -1263,7 +1439,7 @@ function runQuery() {
   var lvl = levels[currentLevel];
   var challenge = lvl.challenges[currentChallengeIndex];
 
-  if (!lvl.backendLoader || !challenge.reference) {
+  if (!lvl.backendLoader || (challenge.type !== 'create' && !challenge.reference)) {
     box.textContent = "⏳ This level doesn't have automatic grading connected yet.";
     box.className = 'result-box';
     return;
@@ -1276,12 +1452,33 @@ function runQuery() {
     return;
   }
 
+  if (challenge.type === 'create') {
+    runCreateTableChallenge(db, challenge, q);
+    return;
+  }
+
   var userExec;
   try {
     userExec = db.exec(q);
   } catch (e) {
     box.className = 'result-box err';
     box.textContent = '❌ SQL error: ' + e.message;
+    return;
+  }
+
+  // Some challenges require a specific keyword (e.g. LEFT JOIN), because
+  // on the current dataset a plain JOIN can happen to return the exact
+  // same result — which would defeat the point of the exercise if we
+  // only compared results. This checks the query text itself.
+  if (challenge.requiredKeyword && q.toUpperCase().indexOf(challenge.requiredKeyword.toUpperCase()) === -1) {
+    var reqRes = extractExec(userExec);
+    var reqTableHtml = document.createElement('div');
+    renderResultTable(reqTableHtml, reqRes.columns, reqRes.values);
+    box.className = 'result-box err';
+    var kwMsg = '❌ This challenge specifically requires <code>' + challenge.requiredKeyword +
+      '</code>. Your query may return the same result here, but that\'s incidental to the current data, not guaranteed by your query.';
+    if (challenge.hint) kwMsg += '<br><em>Hint: ' + challenge.hint + '</em>';
+    box.innerHTML = kwMsg + '<hr style="border-color:var(--border);margin:10px 0;">' + reqTableHtml.innerHTML;
     return;
   }
 

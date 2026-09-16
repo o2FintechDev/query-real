@@ -78,22 +78,51 @@
   // ------------------------------------------------------------------
   // 2. LIVE CALLS TO THE ÉDUCATION NATIONALE DIRECTORY API
   // ------------------------------------------------------------------
+  // Switched from /exports/json (single call, no row limit, but meant
+  // for triggering file downloads rather than being called with fetch()
+  // from a browser — it's flaky/CORS-unfriendly in practice on this
+  // portal) to /records with pagination — the endpoint the portal's own
+  // "Reuse this dataset > API" code generator recommends for JS usage.
+  // /records caps each page at limit=100, with offset+limit < 10000
+  // (per the official ODS v2.1 docs), so we page through with offset.
+  // ~2600 public lycées nationally means ~27 calls — well under the
+  // anonymous quota (5000 calls/day/IP), so no API key is needed (and
+  // embedding one in client-side JS would expose it to anyone viewing
+  // the page source, which is bad practice for a public data key too).
+  var RECORDS_URL = BASE_URL + "/records";
+  var PAGE_LIMIT = 100;
+  var MAX_OFFSET = 9900; // stay under offset+limit < 10000
+
   async function fetchAnnuaireExport(selectFields) {
-    var url = BASE_URL +
-      "?select=" + encodeURIComponent(selectFields) +
-      "&where=" + encodeURIComponent(WHERE_FILTER);
-    var res = await fetch(url);
-    if (!res.ok) {
-      var errBody = "";
-      try { errBody = await res.text(); } catch (e2) { /* ignore */ }
-      console.error("[education] HTTP " + res.status + " for URL:", url, "\nResponse body:", errBody);
-      throw new Error("HTTP " + res.status);
+    var rows = [];
+    var offset = 0;
+    while (true) {
+      var url = RECORDS_URL +
+        "?select=" + encodeURIComponent(selectFields) +
+        "&where=" + encodeURIComponent(WHERE_FILTER) +
+        "&limit=" + PAGE_LIMIT +
+        "&offset=" + offset +
+        "&lang=fr";
+      var res = await fetch(url);
+      if (!res.ok) {
+        var errBody = "";
+        try { errBody = await res.text(); } catch (e2) { /* ignore */ }
+        console.error("[education] HTTP " + res.status + " for URL:", url, "\nResponse body:", errBody);
+        throw new Error("HTTP " + res.status);
+      }
+      var json = await res.json();
+      var page = json && Array.isArray(json.results) ? json.results : null;
+      if (!page) throw new Error("Unexpected response shape from /records");
+      rows = rows.concat(page);
+      console.log(
+        "[education] /records offset=" + offset + ": +" + page.length + " rows (total so far: " + rows.length + "),",
+        "API total_count field:", json.total_count
+      );
+      if (page.length < PAGE_LIMIT) break; // last page reached
+      offset += PAGE_LIMIT;
+      if (offset > MAX_OFFSET) break; // safety net: stay under the API's depth cap
     }
-    var json = await res.json();
-    // /exports/json returns a plain array of records directly (unlike
-    // /records, which wraps results in {results: [...], total_count}).
-    var rows = Array.isArray(json) ? json : (json && Array.isArray(json.results) ? json.results : null);
-    if (!rows) throw new Error("Unexpected response shape from exports/json");
+    if (!rows.length) throw new Error("No rows returned from /records (empty result set)");
     console.log("[education] exports/json returned " + rows.length + " rows for select=" + selectFields + ", url:", url);
     return rows;
   }

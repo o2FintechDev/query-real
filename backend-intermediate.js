@@ -148,18 +148,51 @@
   // anything relevant, and without introducing any geographic bias.
   var TRACKED_PARAMETERS = ["Nitrates", "Phosphore total", "Ammonium", "Temp\u00e9rature de l'eau"];
 
-  async function fetchMeasurements() {
-    var paramFilter = TRACKED_PARAMETERS.map(encodeURIComponent).join(",");
-    var firstUrl = BASE_URL + "analyse_pc" +
-      "?libelle_parametre=" + paramFilter +
+  // Hub'Eau caps the *access depth* of any single query at 20000
+  // (depth = page_number * page_size — see the API's own documented
+  // limit). Once size is already at its max of 20000, page 2 would
+  // require depth 40000, so pagination on a single combined query
+  // can never go past that first page in practice.
+  //
+  // To collect more than 20000 rows in total, we therefore split the
+  // combined "libelle_parametre=A,B,C,D" query into 4 independent
+  // queries (one per tracked parameter), run in parallel, and
+  // concatenate their results. Each one is still capped at 20000,
+  // but the cap now applies per parameter instead of globally —
+  // up to 4 x 20000 = 80000 rows total for analyse_pc.
+  function buildMeasurementsUrl(parameterName) {
+    return BASE_URL + "analyse_pc" +
+      "?libelle_parametre=" + encodeURIComponent(parameterName) +
       "&date_debut_prelevement=2016-01-01" +
       "&fields=code_station,libelle_parametre,date_prelevement,resultat,symbole_unite" +
       "&size=20000&format=json";
-    // Even filtered to 4 parameters, this can still span many pages
-    // nationally, so pagination stays in place as a safety net.
-    var data = await fetchAllPages(firstUrl, 5);
+  }
+
+  async function fetchMeasurementsForParameter(parameterName) {
+    var firstUrl = buildMeasurementsUrl(parameterName);
+    // maxPages stays as a safety net only: with size already at
+    // 20000, the depth limit means a real "next" page is not
+    // expected in practice for a single parameter (unless a
+    // parameter alone exceeds 20000 samples since 2016).
+    return fetchAllPages(firstUrl, 2);
+  }
+
+  async function fetchMeasurements() {
+    var results = await Promise.all(
+      TRACKED_PARAMETERS.map(function (p) {
+        // Isolate failures per parameter: if one call fails (e.g. a
+        // timeout on a single heavy parameter), the others can still
+        // succeed instead of the whole fetchMeasurements() call
+        // throwing and triggering the full sample-data fallback.
+        return fetchMeasurementsForParameter(p).catch(function (e) {
+          console.warn("[hubeau] parameter \"" + p + "\" failed:", e.message);
+          return [];
+        });
+      })
+    );
+    var data = results.reduce(function (acc, rows) { return acc.concat(rows); }, []);
     if (data.length === 0) {
-      throw new Error("Empty or unexpected analyse_pc response");
+      throw new Error("Empty or unexpected analyse_pc response (all parameter queries failed or returned nothing)");
     }
     var rows = data
       .filter(function (a) {

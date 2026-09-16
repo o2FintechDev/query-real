@@ -677,6 +677,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
 <script src="backend-beginner.js"></script>
 <script src="backend-intermediate.js"></script>
+<script src="backend-advanced.js"></script>
 <script>
 /* ============================================================
    LEVEL DEFINITIONS
@@ -904,23 +905,99 @@ var levels = {
 
   advanced: {
     label: 'Advanced', color: '#d29922',
-    backendLoader: null,
+    backendLoader: 'loadAdvancedDB',
     database: {
-      name: '(coming soon) Election results or fuel prices',
-      source: 'data.gouv.fr',
-      description: 'This level will introduce subqueries, CTEs (WITH), and window functions (RANK, ROW_NUMBER) on a French dataset still to be finalized.',
-      schema: '(schema not defined yet)'
+      name: 'French public high schools (lycées)',
+      source: "\u00c9ducation Nationale Directory API (Etalab / Minist\u00e8re de l'\u00c9ducation nationale)",
+      link: 'https://data.education.gouv.fr/explore/dataset/fr-en-annuaire-education/',
+      tables: ['school', 'enrollment'],
+      description: "Two separate calls to the national school directory, selecting different columns each time: each public lyc\u00e9e's identity (reference table), and its student headcount (a second table — a 1-to-1 relationship here rather than a true fact table, kept as two tables so JOIN stays part of the exercise). Restricted to public lyc\u00e9es (~2,600 nationally) to keep the dataset a focused, manageable size.",
+      schema:
+        'school(uai, name, type, department_code, city)\n' +
+        'enrollment(uai, student_count)'
     },
     concepts: [
-      { term: 'Subquery', explanation: 'A SELECT query nested inside another one.', example: 'WHERE population > (SELECT AVG(population) FROM city)' },
-      { term: 'WITH (CTE)', explanation: 'Names a subquery so it can be reused more easily.', example: 'WITH top AS (SELECT ...) SELECT * FROM top;' },
-      { term: 'RANK() / ROW_NUMBER()', explanation: 'Numbers rows according to an order, per group if needed.', example: 'RANK() OVER (PARTITION BY department ORDER BY population DESC)' }
+      { term: 'Subquery', explanation: 'A SELECT nested inside another query, usually in WHERE — it runs first and gives a value (or list of values) to compare against.', example: 'WHERE student_count > (SELECT AVG(student_count) FROM enrollment)' },
+      { term: 'WITH ... AS (...) (CTE)', explanation: "Names a subquery so you can SELECT FROM it just like a real table — makes complex queries easier to read and reuse.", example: 'WITH dept_avg AS (SELECT department_code, AVG(student_count) AS avg_students FROM ... GROUP BY department_code) SELECT * FROM dept_avg;' },
+      { term: 'ROW_NUMBER() / RANK() OVER (...)', explanation: 'Window functions: number or rank rows according to an order, without collapsing them into groups the way GROUP BY does.', example: 'RANK() OVER (ORDER BY student_count DESC)' },
+      { term: 'PARTITION BY', explanation: "Used inside OVER(...) to restart a window function's numbering for each group — e.g. rank schools within each department separately instead of across all of France at once.", example: 'RANK() OVER (PARTITION BY department_code ORDER BY student_count DESC)' }
     ],
     challenges: [
       {
-        title: 'Challenge 1 — Coming soon',
-        description: "This level doesn't have a database or challenges connected yet. The next step for the project is to choose the final dataset and write the matching backend.",
-        starter: ''
+        title: 'Challenge 1 — Warm-up join',
+        description: 'Show the name, type, and student count for every public lycée, joining the two tables on their UAI code.',
+        starter: 'SELECT s.name, s.type, e.student_count\nFROM school s\nJOIN enrollment e ON s.uai = e.uai;',
+        reference: 'SELECT s.name, s.type, e.student_count FROM school s JOIN enrollment e ON s.uai = e.uai;',
+        hint: 'Same JOIN pattern as the Intermediate level.'
+      },
+      {
+        title: 'Challenge 2 — Your first subquery',
+        description: 'Show the name and student count of every lycée with more students than the national average across all lycées.',
+        starter: 'SELECT s.name, e.student_count\nFROM school s\nJOIN enrollment e ON s.uai = e.uai\nWHERE e.student_count > (SELECT AVG(student_count) FROM enrollment);',
+        reference: 'SELECT s.name, e.student_count FROM school s JOIN enrollment e ON s.uai = e.uai WHERE e.student_count > (SELECT AVG(student_count) FROM enrollment);',
+        hint: 'A subquery in parentheses inside WHERE runs first and gives you a single value to compare against.'
+      },
+      {
+        title: 'Challenge 3 — Subquery for a maximum',
+        description: 'Show the name of the lycée with the most students, using a subquery instead of ORDER BY + LIMIT.',
+        starter: 'SELECT s.name, e.student_count\nFROM school s\nJOIN enrollment e ON s.uai = e.uai\nWHERE e.student_count = (SELECT MAX(student_count) FROM enrollment);',
+        reference: 'SELECT s.name, e.student_count FROM school s JOIN enrollment e ON s.uai = e.uai WHERE e.student_count = (SELECT MAX(student_count) FROM enrollment);',
+        hint: 'WHERE column = (SELECT MAX(...) ...) finds the row(s) matching the overall maximum.'
+      },
+      {
+        title: 'Challenge 4 — Your first CTE',
+        description: 'Using a CTE (WITH), compute the average student count per department, then show only the departments where that average is above 800.',
+        starter: 'WITH dept_avg AS (\n  SELECT s.department_code, AVG(e.student_count) AS avg_students\n  FROM school s\n  JOIN enrollment e ON s.uai = e.uai\n  GROUP BY s.department_code\n)\nSELECT department_code, avg_students\nFROM dept_avg\nWHERE avg_students > 800\nORDER BY avg_students DESC;',
+        reference: 'WITH dept_avg AS (SELECT s.department_code, AVG(e.student_count) AS avg_students FROM school s JOIN enrollment e ON s.uai = e.uai GROUP BY s.department_code) SELECT department_code, avg_students FROM dept_avg WHERE avg_students > 800 ORDER BY avg_students DESC;',
+        orderMatters: true,
+        hint: 'WITH name AS (...) defines a temporary named result you can then SELECT FROM, just like a table.'
+      },
+      {
+        title: 'Challenge 5 — Compare to the group average',
+        description: "Using the same kind of CTE, show every lycée that has more students than the average of its own department (not the national average).",
+        starter: 'WITH dept_avg AS (\n  SELECT s.department_code, AVG(e.student_count) AS avg_students\n  FROM school s\n  JOIN enrollment e ON s.uai = e.uai\n  GROUP BY s.department_code\n)\nSELECT s.name, e.student_count, s.department_code\nFROM school s\nJOIN enrollment e ON s.uai = e.uai\nJOIN dept_avg d ON s.department_code = d.department_code\nWHERE e.student_count > d.avg_students;',
+        reference: 'WITH dept_avg AS (SELECT s.department_code, AVG(e.student_count) AS avg_students FROM school s JOIN enrollment e ON s.uai = e.uai GROUP BY s.department_code) SELECT s.name, e.student_count, s.department_code FROM school s JOIN enrollment e ON s.uai = e.uai JOIN dept_avg d ON s.department_code = d.department_code WHERE e.student_count > d.avg_students;',
+        hint: "Join the CTE back to school/enrollment on department_code, then compare each lycée's own size to its department's average."
+      },
+      {
+        title: 'Challenge 6 — Your first window function',
+        description: 'Number every lycée from largest to smallest by student count, using ROW_NUMBER().',
+        starter: 'SELECT s.name, e.student_count,\n  ROW_NUMBER() OVER (ORDER BY e.student_count DESC) AS rnk\nFROM school s\nJOIN enrollment e ON s.uai = e.uai;',
+        reference: 'SELECT s.name, e.student_count, ROW_NUMBER() OVER (ORDER BY e.student_count DESC) FROM school s JOIN enrollment e ON s.uai = e.uai;',
+        orderMatters: true,
+        hint: 'ROW_NUMBER() OVER (ORDER BY ...) assigns 1, 2, 3... to rows in that order — no GROUP BY involved.'
+      },
+      {
+        title: 'Challenge 7 — RANK with PARTITION BY',
+        description: 'For each department, rank its lycées from largest to smallest using RANK(), restarting the ranking at 1 for every department.',
+        starter: 'SELECT s.department_code, s.name, e.student_count,\n  RANK() OVER (PARTITION BY s.department_code ORDER BY e.student_count DESC) AS dept_rank\nFROM school s\nJOIN enrollment e ON s.uai = e.uai;',
+        reference: 'SELECT s.department_code, s.name, e.student_count, RANK() OVER (PARTITION BY s.department_code ORDER BY e.student_count DESC) FROM school s JOIN enrollment e ON s.uai = e.uai;',
+        orderMatters: true,
+        hint: 'PARTITION BY department_code restarts the ranking for each department, instead of ranking across all of France at once.'
+      },
+      {
+        title: 'Challenge 8 — Filter on a window function via a CTE',
+        description: "Show only the single largest lycée in each department (rank 1), using the same ranking as challenge 7. You can't filter directly on a window function in the same SELECT — wrap it in a CTE first.",
+        starter: 'WITH ranked AS (\n  SELECT s.department_code, s.name, e.student_count,\n    RANK() OVER (PARTITION BY s.department_code ORDER BY e.student_count DESC) AS dept_rank\n  FROM school s\n  JOIN enrollment e ON s.uai = e.uai\n)\nSELECT department_code, name, student_count\nFROM ranked\nWHERE dept_rank = 1\nORDER BY department_code;',
+        reference: 'WITH ranked AS (SELECT s.department_code, s.name, e.student_count, RANK() OVER (PARTITION BY s.department_code ORDER BY e.student_count DESC) AS dept_rank FROM school s JOIN enrollment e ON s.uai = e.uai) SELECT department_code, name, student_count FROM ranked WHERE dept_rank = 1 ORDER BY department_code;',
+        orderMatters: true,
+        hint: "A window function's result isn't available to WHERE in the same query — compute it inside a CTE, then filter the CTE."
+      },
+      {
+        title: 'Challenge 9 — Rank nationally',
+        description: 'Using a CTE with RANK(), show the 3 largest lycées nationally (rank 1 to 3, ignoring departments this time), with their department.',
+        starter: 'WITH ranked AS (\n  SELECT s.department_code, s.name, e.student_count,\n    RANK() OVER (ORDER BY e.student_count DESC) AS overall_rank\n  FROM school s\n  JOIN enrollment e ON s.uai = e.uai\n)\nSELECT department_code, name, student_count\nFROM ranked\nWHERE overall_rank <= 3\nORDER BY overall_rank;',
+        reference: 'WITH ranked AS (SELECT s.department_code, s.name, e.student_count, RANK() OVER (ORDER BY e.student_count DESC) AS overall_rank FROM school s JOIN enrollment e ON s.uai = e.uai) SELECT department_code, name, student_count FROM ranked WHERE overall_rank <= 3 ORDER BY overall_rank;',
+        orderMatters: true,
+        hint: 'Same pattern as challenge 8, but without PARTITION BY this time — and WHERE overall_rank <= 3 instead of = 1.'
+      },
+      {
+        title: 'Challenge 10 — Put it all together',
+        description: "Show the largest lycée in each department (as in challenge 8), but only keep departments where that top lycée has more than 1000 students. Sort by student count, largest first.",
+        starter: 'WITH ranked AS (\n  SELECT s.department_code, s.name, e.student_count,\n    RANK() OVER (PARTITION BY s.department_code ORDER BY e.student_count DESC) AS dept_rank\n  FROM school s\n  JOIN enrollment e ON s.uai = e.uai\n)\nSELECT department_code, name, student_count\nFROM ranked\nWHERE dept_rank = 1 AND student_count > 1000\nORDER BY student_count DESC;',
+        reference: 'WITH ranked AS (SELECT s.department_code, s.name, e.student_count, RANK() OVER (PARTITION BY s.department_code ORDER BY e.student_count DESC) AS dept_rank FROM school s JOIN enrollment e ON s.uai = e.uai) SELECT department_code, name, student_count FROM ranked WHERE dept_rank = 1 AND student_count > 1000 ORDER BY student_count DESC;',
+        orderMatters: true,
+        hint: 'Same CTE + RANK pattern as challenge 8, with an extra condition in the final WHERE and a new ORDER BY.'
       }
     ]
   },
@@ -972,7 +1049,7 @@ var levels = {
 /* ============================================================
    PROGRESS TRACKING (localStorage)
    ============================================================ */
-var PROGRESS_KEY = 'queryreal_progress_v3';
+var PROGRESS_KEY = 'queryreal_progress_v4';
 
 function loadAllProgress() {
   try {

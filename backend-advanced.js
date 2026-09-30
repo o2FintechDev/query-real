@@ -1,72 +1,56 @@
 /* ============================================================
-   QUERYREAL — ADVANCED LEVEL BACKEND (v1 — French public high schools)
+   QUERYREAL — ADVANCED LEVEL BACKEND (v3 — French universities)
    ------------------------------------------------------------
-   Source: Éducation Nationale Directory (Etalab / Ministère de
-   l'Éducation nationale)
-   https://data.education.gouv.fr/explore/dataset/fr-en-annuaire-education/
-   Open access, no API key, OpenDataSoft "Explore API v2.1" — using the
-   /exports/json endpoint (accepts the same select/where filters as the
-   paginated /records endpoint, but returns every matching row in a
-   single call instead of requiring manual pagination).
-
-   Two separate calls to the SAME dataset, selecting different
-   columns each time, produce two tables:
-
-     school      -->  reference table (uai, name, type, department, city)
-     enrollment  -->  a second table (uai, student_count)
-
-   Note: unlike the Intermediate level's station/measurement pair,
-   this is a 1-to-1 relationship (one enrollment row per school), not
-   a true fact table. It's split into two tables anyway so JOIN stays
-   in practice, while keeping the field names 100% verified against
-   the official data.gouv.fr documentation — after several rounds of
-   trial and error with Hub'Eau's field names, reliability took
-   priority over a "perfect" fact/reference split here.
-
-   Restricted to public lycées (WHERE type_etablissement="Lycée" and
-   statut_public_prive="Public") to keep the dataset a focused,
-   browser-friendly size (~2600 nationally) instead of the full
-   ~66000 establishments of every type.
-
-   Same fallback strategy as the other levels: if the API is
-   unavailable, fall back to a sample dataset with the same schema.
+   Source: Ministère de l'Enseignement Supérieur et de la Recherche
+   https://data.enseignementsup-recherche.gouv.fr/api/explore/v2.1/catalog/datasets/fr-esr-principaux-etablissements-enseignement-superieur/records
+   
+   Open access, no API key, OpenDataSoft "Explore API v2.1"
+   
+   Two tables:
+     university   -->  reference table (uai, name, type, department_code, city)
+     enrollment   -->  a second table (uai, student_count) — REAL DATA from inscrits_2024
+   
+   65 public universities have the "Université" designation, but only 58 have official 2024 enrollment data (inscrits_2024).
    ============================================================ */
 
 (function (global) {
   "use strict";
 
-  var BASE_URL = "https://data.education.gouv.fr/api/explore/v2.1/catalog/datasets/fr-en-annuaire-education/exports/json";
-  var WHERE_FILTER = 'statut_public_prive="Public" and type_etablissement like "Lycee"';
+  var BASE_URL = "https://data.enseignementsup-recherche.gouv.fr/api/explore/v2.1/catalog/datasets/fr-esr-principaux-etablissements-enseignement-superieur";
+  var WHERE_FILTER = 'secteur_d_etablissement="public" AND typologie_d_universites_et_assimiles IS NOT NULL';
+  var RECORDS_URL = BASE_URL + "/records";
+  var PAGE_LIMIT = 100;
+  var MAX_OFFSET = 9900;
 
   // ------------------------------------------------------------------
   // 1. FALLBACK DATA (SAMPLE)
   // ------------------------------------------------------------------
   var FALLBACK_SCHOOLS = [
-    { uai: "0750001A", name: "Lyc\u00e9e Louis-le-Grand",        type: "Lyc\u00e9e", dep: "75", city: "Paris" },
-    { uai: "0750002B", name: "Lyc\u00e9e Henri-IV",              type: "Lyc\u00e9e", dep: "75", city: "Paris" },
-    { uai: "0690003C", name: "Lyc\u00e9e du Parc",               type: "Lyc\u00e9e", dep: "69", city: "Lyon" },
-    { uai: "0330004D", name: "Lyc\u00e9e Montaigne",             type: "Lyc\u00e9e", dep: "33", city: "Bordeaux" },
-    { uai: "0130005E", name: "Lyc\u00e9e Thiers",                type: "Lyc\u00e9e", dep: "13", city: "Marseille" },
-    { uai: "0310006F", name: "Lyc\u00e9e Pierre-de-Fermat",      type: "Lyc\u00e9e", dep: "31", city: "Toulouse" },
-    { uai: "0590007G", name: "Lyc\u00e9e Faidherbe",             type: "Lyc\u00e9e", dep: "59", city: "Lille" },
-    { uai: "0670008H", name: "Lyc\u00e9e Kl\u00e9ber",           type: "Lyc\u00e9e", dep: "67", city: "Strasbourg" },
-    { uai: "0440009J", name: "Lyc\u00e9e Clemenceau",            type: "Lyc\u00e9e", dep: "44", city: "Nantes" },
-    { uai: "0060010K", name: "Lyc\u00e9e Mass\u00e9na",          type: "Lyc\u00e9e", dep: "06", city: "Nice" },
-    { uai: "7500011L", name: "Lyc\u00e9e Jacques-Decour",        type: "Lyc\u00e9e", dep: "75", city: "Paris" },
-    { uai: "6900012M", name: "Lyc\u00e9e Ampere",                type: "Lyc\u00e9e", dep: "69", city: "Lyon" },
-    { uai: "3300013N", name: "Lyc\u00e9e Camille-Jullian",       type: "Lyc\u00e9e", dep: "33", city: "Bordeaux" },
-    { uai: "1300014P", name: "Lyc\u00e9e Saint-Charles",         type: "Lyc\u00e9e", dep: "13", city: "Marseille" },
-    { uai: "3100015Q", name: "Lyc\u00e9e Saint-Sernin",          type: "Lyc\u00e9e", dep: "31", city: "Toulouse" },
-    { uai: "5900016R", name: "Lyc\u00e9e Baggio",                type: "Lyc\u00e9e", dep: "59", city: "Lille" },
-    { uai: "6700017S", name: "Lyc\u00e9e Jean-Monnet",           type: "Lyc\u00e9e", dep: "67", city: "Strasbourg" },
-    { uai: "4400018T", name: "Lyc\u00e9e Gabriel-Guist'hau",     type: "Lyc\u00e9e", dep: "44", city: "Nantes" },
-    { uai: "0060019U", name: "Lyc\u00e9e Calmette",              type: "Lyc\u00e9e", dep: "06", city: "Nice" },
-    { uai: "7500020V", name: "Lyc\u00e9e Victor-Hugo",           type: "Lyc\u00e9e", dep: "75", city: "Paris" }
+    { uai: "0750662Z", name: "Sorbonne Université",                type: "Université", dep: "75", city: "Paris" },
+    { uai: "0750654J", name: "Université Paris Cité",              type: "Université", dep: "75", city: "Paris" },
+    { uai: "0750673K", name: "Université Paris-Saclay",            type: "Université", dep: "91", city: "Orsay" },
+    { uai: "0750665C", name: "Université PSL",                     type: "Université", dep: "75", city: "Paris" },
+    { uai: "0690033X", name: "Université Claude Bernard Lyon 1",    type: "Université", dep: "69", city: "Lyon" },
+    { uai: "0690034Y", name: "Université Lumière Lyon 2",           type: "Université", dep: "69", city: "Lyon" },
+    { uai: "0330073P", name: "Université de Bordeaux",              type: "Université", dep: "33", city: "Bordeaux" },
+    { uai: "0130091M", name: "Aix-Marseille Université",            type: "Université", dep: "13", city: "Marseille" },
+    { uai: "0310078L", name: "Université Toulouse III",             type: "Université", dep: "31", city: "Toulouse" },
+    { uai: "0590032U", name: "Université de Lille",                 type: "Université", dep: "59", city: "Lille" },
+    { uai: "0670035W", name: "Université de Strasbourg",            type: "Université", dep: "67", city: "Strasbourg" },
+    { uai: "0440054G", name: "Université de Nantes",                type: "Université", dep: "44", city: "Nantes" },
+    { uai: "0060041C", name: "Université Côte d'Azur",              type: "Université", dep: "06", city: "Nice" },
+    { uai: "0380058A", name: "Université Grenoble Alpes",           type: "Université", dep: "38", city: "Grenoble" },
+    { uai: "0210017S", name: "Université de Bourgogne",             type: "Université", dep: "21", city: "Dijon" },
+    { uai: "0870011F", name: "Université de Limoges",               type: "Université", dep: "87", city: "Limoges" },
+    { uai: "0450069H", name: "Université d'Orléans",                type: "Université", dep: "45", city: "Orléans" },
+    { uai: "0720009T", name: "Université du Maine",                 type: "Université", dep: "72", city: "Le Mans" },
+    { uai: "0240012E", name: "Université de Caen Normandie",        type: "Université", dep: "14", city: "Caen" },
+    { uai: "0760033Q", name: "Université de Rouen Normandie",       type: "Université", dep: "76", city: "Rouen" }
   ];
 
   var FALLBACK_ENROLLMENT = [
-    1450, 1180, 1620, 980, 1340, 1510, 890, 1050, 1220, 760,
-    1090, 1380, 940, 1600, 870, 1010, 1150, 720, 1290, 1470
+    45000, 38000, 28000, 32000, 35000, 28000, 43000, 53000, 30000, 55000,
+    45000, 38000, 25000, 42000, 30000, 18000, 15000, 12000, 20000, 18000
   ];
 
   function buildFallbackEnrollment() {
@@ -76,23 +60,8 @@
   }
 
   // ------------------------------------------------------------------
-  // 2. LIVE CALLS TO THE ÉDUCATION NATIONALE DIRECTORY API
+  // 2. LIVE CALLS TO THE MINISTÈRE API
   // ------------------------------------------------------------------
-  // Switched from /exports/json (single call, no row limit, but meant
-  // for triggering file downloads rather than being called with fetch()
-  // from a browser — it's flaky/CORS-unfriendly in practice on this
-  // portal) to /records with pagination — the endpoint the portal's own
-  // "Reuse this dataset > API" code generator recommends for JS usage.
-  // /records caps each page at limit=100, with offset+limit < 10000
-  // (per the official ODS v2.1 docs), so we page through with offset.
-  // ~2600 public lycées nationally means ~27 calls — well under the
-  // anonymous quota (5000 calls/day/IP), so no API key is needed (and
-  // embedding one in client-side JS would expose it to anyone viewing
-  // the page source, which is bad practice for a public data key too).
-  var RECORDS_URL = BASE_URL + "/records";
-  var PAGE_LIMIT = 100;
-  var MAX_OFFSET = 9900; // stay under offset+limit < 10000
-
   async function fetchAnnuaireExport(selectFields) {
     var rows = [];
     var offset = 0;
@@ -103,58 +72,87 @@
         "&limit=" + PAGE_LIMIT +
         "&offset=" + offset +
         "&lang=fr";
+      
+      console.log("[universities] Fetching offset=" + offset);
+      
       var res = await fetch(url);
       if (!res.ok) {
         var errBody = "";
         try { errBody = await res.text(); } catch (e2) { /* ignore */ }
-        console.error("[education] HTTP " + res.status + " for URL:", url, "\nResponse body:", errBody);
+        console.error("[universities] HTTP " + res.status, "Body:", errBody);
         throw new Error("HTTP " + res.status);
       }
+      
       var json = await res.json();
-      var page = json && Array.isArray(json.results) ? json.results : null;
-      if (!page) throw new Error("Unexpected response shape from /records");
+      var page = json && Array.isArray(json.results) ? json.results : [];
+      
+      console.log("[universities] Got " + page.length + " rows (total: " + (rows.length + page.length) + ")");
+      
       rows = rows.concat(page);
-      console.log(
-        "[education] /records offset=" + offset + ": +" + page.length + " rows (total so far: " + rows.length + "),",
-        "API total_count field:", json.total_count
-      );
-      if (page.length < PAGE_LIMIT) break; // last page reached
+      if (page.length < PAGE_LIMIT) break;
       offset += PAGE_LIMIT;
-      if (offset > MAX_OFFSET) break; // safety net: stay under the API's depth cap
+      if (offset > MAX_OFFSET) break;
     }
-    if (!rows.length) throw new Error("No rows returned from /records (empty result set)");
-    console.log("[education] exports/json returned " + rows.length + " rows for select=" + selectFields + ", url:", url);
+    
+    if (!rows.length) throw new Error("No rows returned from API");
     return rows;
   }
 
-  async function fetchSchools() {
+  async function fetchUniversities() {
     var rows = await fetchAnnuaireExport(
-      "identifiant_de_l_etablissement,nom_etablissement,type_etablissement,code_departement,nom_commune"
+      "uai,uo_lib_officiel,dep_nom,com_nom"
     );
     var mapped = rows
-      .filter(function (r) { return r.identifiant_de_l_etablissement && r.nom_etablissement; })
+      .filter(function (r) { return r.uai && r.uo_lib_officiel; })
       .map(function (r) {
         return {
-          uai: r.identifiant_de_l_etablissement,
-          name: r.nom_etablissement,
-          type: r.type_etablissement,
-          department_code: r.code_departement,
-          city: r.nom_commune
+          uai: r.uai,
+          name: r.uo_lib_officiel,
+          type: "Université",
+          department_code: r.dep_nom || "",
+          city: r.com_nom || ""
         };
       });
-    if (!mapped.length) throw new Error("No usable school rows after filtering (missing/renamed fields?)");
-    return mapped;
+    
+    // Déduplique par UAI
+    var seen = {};
+    var deduped = [];
+    mapped.forEach(function (u) {
+      if (!seen[u.uai]) {
+        seen[u.uai] = true;
+        deduped.push(u);
+      }
+    });
+    
+    console.log("[universities] Universities before dedup: " + mapped.length + ", after: " + deduped.length);
+    if (!deduped.length) throw new Error("No usable universities returned");
+    return deduped;
   }
 
   async function fetchEnrollment() {
-    var rows = await fetchAnnuaireExport("identifiant_de_l_etablissement,nombre_d_eleves");
+    var rows = await fetchAnnuaireExport("uai,inscrits_2024");
     var mapped = rows
-      .filter(function (r) { return r.identifiant_de_l_etablissement && typeof r.nombre_d_eleves === "number"; })
+      .filter(function (r) { return r.uai && typeof r.inscrits_2024 === "number"; })
       .map(function (r) {
-        return { uai: r.identifiant_de_l_etablissement, student_count: r.nombre_d_eleves };
+        return {
+          uai: r.uai,
+          student_count: r.inscrits_2024
+        };
       });
-    if (!mapped.length) throw new Error("No usable enrollment rows after filtering (missing/renamed fields?)");
-    return mapped;
+    
+    // Déduplique par UAI
+    var seen = {};
+    var deduped = [];
+    mapped.forEach(function (e) {
+      if (!seen[e.uai]) {
+        seen[e.uai] = true;
+        deduped.push(e);
+      }
+    });
+    
+    console.log("[universities] Enrollment rows before dedup: " + mapped.length + ", after: " + deduped.length);
+    if (!deduped.length) throw new Error("No usable enrollment returned");
+    return deduped;
   }
 
   // ------------------------------------------------------------------
@@ -177,34 +175,37 @@
     });
     var db = new SQL.Database();
 
-    var schools = null;
+    var universities = null;
     var enrollment = null;
-    var source = "sample (Education Directory API unavailable)";
+    var source = "sample (Ministère API unavailable)";
     try {
-      var results = await Promise.all([fetchSchools(), fetchEnrollment()]);
-      schools = results[0];
+      var results = await Promise.all([fetchUniversities(), fetchEnrollment()]);
+      universities = results[0];
       enrollment = results[1];
-      source = "live (\u00c9ducation Nationale Directory API, public lyc\u00e9es)";
+      source = "live (Ministère de l'Enseignement Supérieur et de la Recherche, " + universities.length + " universités publiques)";
+      console.log("[backend-advanced] ✅ API loaded successfully with " + universities.length + " universities");
     } catch (e) {
-      console.warn("[backend-advanced] API unavailable, falling back to sample data:", e.message);
-      schools = FALLBACK_SCHOOLS.map(function (s) {
-        return { uai: s.uai, name: s.name, type: s.type, department_code: s.dep, city: s.city };
-      });
+      console.warn("[backend-advanced] ⚠️ API unavailable, using fallback data:", e.message);
+      universities = FALLBACK_SCHOOLS;
       enrollment = buildFallbackEnrollment();
     }
 
     db.run(
-      "CREATE TABLE school (" +
-      "uai TEXT, name TEXT, type TEXT, department_code TEXT, city TEXT" +
+      "CREATE TABLE university (" +
+      "uai TEXT PRIMARY KEY, name TEXT, type TEXT, department_code TEXT, city TEXT" +
       ")"
     );
-    var stmtS = db.prepare("INSERT INTO school VALUES (?,?,?,?,?)");
-    schools.forEach(function (s) {
-      stmtS.run([s.uai, s.name, s.type, s.department_code, s.city]);
+    var stmtU = db.prepare("INSERT INTO university VALUES (?,?,?,?,?)");
+    universities.forEach(function (u) {
+      stmtU.run([u.uai, u.name, u.type, u.department_code, u.city]);
     });
-    stmtS.free();
+    stmtU.free();
 
-    db.run("CREATE TABLE enrollment (uai TEXT, student_count INTEGER)");
+    db.run(
+      "CREATE TABLE enrollment (" +
+      "uai TEXT PRIMARY KEY, student_count INTEGER" +
+      ")"
+    );
     var stmtE = db.prepare("INSERT INTO enrollment VALUES (?,?)");
     enrollment.forEach(function (e) {
       stmtE.run([e.uai, e.student_count]);
@@ -220,7 +221,7 @@
   // ------------------------------------------------------------------
   global.QueryRealAdvancedBackend = {
     FALLBACK_SCHOOLS: FALLBACK_SCHOOLS,
-    fetchSchools: fetchSchools,
+    fetchUniversities: fetchUniversities,
     fetchEnrollment: fetchEnrollment,
     loadAdvancedDB: loadAdvancedDB
   };

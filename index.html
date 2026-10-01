@@ -921,86 +921,86 @@ advanced: {
       { term: 'ROW_NUMBER() / RANK() OVER (...)', explanation: 'Window functions: number or rank rows according to an order, without collapsing them into groups the way GROUP BY does.', example: 'RANK() OVER (ORDER BY student_count DESC)' },
       { term: 'PARTITION BY', explanation: "Used inside OVER(...) to restart a window function's numbering for each group — e.g. rank universities within each department separately instead of across all of France at once.", example: 'RANK() OVER (PARTITION BY department_code ORDER BY student_count DESC)' }
     ],
-    challenges: [
-      {
-        title: 'Challenge 1 — Warm-up join',
-        description: 'Show the name, type, and student count for every public university, joining the two tables on their UAI code.',
-        starter: 'SELECT u.name, u.type, e.student_count\nFROM university u\nJOIN enrollment e ON u.uai = e.uai;',
-        reference: 'SELECT u.name, u.type, e.student_count FROM university u JOIN enrollment e ON u.uai = e.uai;',
-        hint: 'Same JOIN pattern as the Intermediate level — just with university tables now.'
-      },
-      {
-        title: 'Challenge 2 — Your first subquery',
-        description: 'Show the name and student count of every university with more students than the national average across all universities.',
-        starter: 'SELECT u.name, e.student_count\nFROM university u\nJOIN enrollment e ON u.uai = e.uai\nWHERE e.student_count > (SELECT AVG(student_count) FROM enrollment);',
-        reference: 'SELECT u.name, e.student_count FROM university u JOIN enrollment e ON u.uai = e.uai WHERE e.student_count > (SELECT AVG(student_count) FROM enrollment);',
-        hint: 'A subquery in parentheses inside WHERE runs first and gives you a single value to compare against.'
-      },
-      {
-        title: 'Challenge 3 — Subquery for a maximum',
-        description: 'Show the name of the university with the most students, using a subquery instead of ORDER BY + LIMIT.',
-        starter: 'SELECT u.name, e.student_count\nFROM university u\nJOIN enrollment e ON u.uai = e.uai\nWHERE e.student_count = (SELECT MAX(student_count) FROM enrollment);',
-        reference: 'SELECT u.name, e.student_count FROM university u JOIN enrollment e ON u.uai = e.uai WHERE e.student_count = (SELECT MAX(student_count) FROM enrollment);',
-        hint: 'WHERE column = (SELECT MAX(...) ...) finds the row(s) matching the overall maximum.'
-      },
-      {
-        title: 'Challenge 4 — Your first CTE',
-        description: 'Using a CTE (WITH), compute the average student count per department, then show only the departments where that average is above 5000.',
-        starter: 'WITH dept_avg AS (\n  SELECT u.department_code, AVG(e.student_count) AS avg_students\n  FROM university u\n  JOIN enrollment e ON u.uai = e.uai\n  GROUP BY u.department_code\n)\nSELECT department_code, avg_students\nFROM dept_avg\nWHERE avg_students > 5000\nORDER BY avg_students DESC;',
-        reference: 'WITH dept_avg AS (SELECT u.department_code, AVG(e.student_count) AS avg_students FROM university u JOIN enrollment e ON u.uai = e.uai GROUP BY u.department_code) SELECT department_code, avg_students FROM dept_avg WHERE avg_students > 5000 ORDER BY avg_students DESC;',
-        orderMatters: true,
-        hint: 'WITH name AS (...) defines a temporary named result you can then SELECT FROM, just like a table.'
-      },
-      {
-        title: 'Challenge 5 — Compare to the group average',
-        description: "Using the same kind of CTE, show every university that has more students than the average of its own department (not the national average).",
-        starter: 'WITH dept_avg AS (\n  SELECT u.department_code, AVG(e.student_count) AS avg_students\n  FROM university u\n  JOIN enrollment e ON u.uai = e.uai\n  GROUP BY u.department_code\n)\nSELECT u.name, e.student_count, u.department_code\nFROM university u\nJOIN enrollment e ON u.uai = e.uai\nJOIN dept_avg d ON u.department_code = d.department_code\nWHERE e.student_count > d.avg_students;',
-        reference: 'WITH dept_avg AS (SELECT u.department_code, AVG(e.student_count) AS avg_students FROM university u JOIN enrollment e ON u.uai = e.uai GROUP BY u.department_code) SELECT u.name, e.student_count, u.department_code FROM university u JOIN enrollment e ON u.uai = e.uai JOIN dept_avg d ON u.department_code = d.department_code WHERE e.student_count > d.avg_students;',
-        hint: "Join the CTE back to university/enrollment on department_code, then compare each university's own size to its department's average."
-      },
-      {
-        title: 'Challenge 6 — Your first window function',
-        description: 'Number every university from largest to smallest by student count, using ROW_NUMBER().',
-        starter: 'SELECT u.name, e.student_count,\n  ROW_NUMBER() OVER (ORDER BY e.student_count DESC) AS rnk\nFROM university u\nJOIN enrollment e ON u.uai = e.uai;',
-        reference: 'SELECT u.name, e.student_count, ROW_NUMBER() OVER (ORDER BY e.student_count DESC) FROM university u JOIN enrollment e ON u.uai = e.uai;',
-        orderMatters: true,
-        hint: 'ROW_NUMBER() OVER (ORDER BY ...) assigns 1, 2, 3... to rows in that order — no GROUP BY involved.'
-      },
-      {
-        title: 'Challenge 7 — RANK with PARTITION BY',
-        description: 'For each department, rank its universities from largest to smallest using RANK(), restarting the ranking at 1 for every department.',
-        starter: 'SELECT u.department_code, u.name, e.student_count,\n  RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) AS dept_rank\nFROM university u\nJOIN enrollment e ON u.uai = e.uai;',
-        reference: 'SELECT u.department_code, u.name, e.student_count, RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) FROM university u JOIN enrollment e ON u.uai = e.uai;',
-        orderMatters: true,
-        hint: 'PARTITION BY department_code restarts the ranking for each department, instead of ranking across all of France at once.'
-      },
-      {
-        title: 'Challenge 8 — Filter on a window function via a CTE',
-        description: "Show only the single largest university in each department (rank 1), using the same ranking as challenge 7. You can't filter directly on a window function in the same SELECT — wrap it in a CTE first.",
-        starter: 'WITH ranked AS (\n  SELECT u.department_code, u.name, e.student_count,\n    RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) AS dept_rank\n  FROM university u\n  JOIN enrollment e ON u.uai = e.uai\n)\nSELECT department_code, name, student_count\nFROM ranked\nWHERE dept_rank = 1\nORDER BY department_code;',
-        reference: 'WITH ranked AS (SELECT u.department_code, u.name, e.student_count, RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) AS dept_rank FROM university u JOIN enrollment e ON u.uai = e.uai) SELECT department_code, name, student_count FROM ranked WHERE dept_rank = 1 ORDER BY department_code;',
-        orderMatters: true,
-        hint: "A window function's result isn't available to WHERE in the same query — compute it inside a CTE, then filter the CTE."
-      },
-      {
-        title: 'Challenge 9 — Rank nationally',
-        description: 'Using a CTE with RANK(), show the 5 largest universities nationally (rank 1 to 5, ignoring departments this time), with their department.',
-        starter: 'WITH ranked AS (\n  SELECT u.department_code, u.name, e.student_count,\n    RANK() OVER (ORDER BY e.student_count DESC) AS overall_rank\n  FROM university u\n  JOIN enrollment e ON u.uai = e.uai\n)\nSELECT department_code, name, student_count\nFROM ranked\nWHERE overall_rank <= 5\nORDER BY overall_rank;',
-        reference: 'WITH ranked AS (SELECT u.department_code, u.name, e.student_count, RANK() OVER (ORDER BY e.student_count DESC) AS overall_rank FROM university u JOIN enrollment e ON u.uai = e.uai) SELECT department_code, name, student_count FROM ranked WHERE overall_rank <= 5 ORDER BY overall_rank;',
-        orderMatters: true,
-        hint: 'Same pattern as challenge 8, but without PARTITION BY this time — and WHERE overall_rank <= 5 instead of = 1.'
-      },
-      {
-        title: 'Challenge 10 — Put it all together',
-        description: "Show the largest university in each department (as in challenge 8), but only keep departments where that top university has more than 15000 students. Sort by student count, largest first.",
-        starter: 'WITH ranked AS (\n  SELECT u.department_code, u.name, e.student_count,\n    RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) AS dept_rank\n  FROM university u\n  JOIN enrollment e ON u.uai = e.uai\n)\nSELECT department_code, name, student_count\nFROM ranked\nWHERE dept_rank = 1 AND student_count > 15000\nORDER BY student_count DESC;',
-        reference: 'WITH ranked AS (SELECT u.department_code, u.name, e.student_count, RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) AS dept_rank FROM university u JOIN enrollment e ON u.uai = e.uai) SELECT department_code, name, student_count FROM ranked WHERE dept_rank = 1 AND student_count > 15000 ORDER BY student_count DESC;',
-        orderMatters: true,
-        hint: 'Same CTE + RANK pattern as challenge 8, with an extra condition in the final WHERE and a new ORDER BY.'
-      }
-    ]
+  challenges: [
+    {
+      title: 'Challenge 1 — Warm-up join',
+      description: 'Show the name, type, and student count for every public university, joining the two tables on their UAI code.',
+      starter: 'SELECT u.name, u.type, e.student_count\nFROM university u\nJOIN enrollment e ON u.uai = e.uai;',
+      reference: 'SELECT u.name, u.type, e.student_count FROM university u JOIN enrollment e ON u.uai = e.uai;',
+      hint: 'Same JOIN pattern as the Intermediate level — just with university tables now.'
+    },
+    {
+      title: 'Challenge 2 — Your first subquery',
+      description: 'Show the name and student count of every university with more students than the national average across all universities.',
+      starter: 'SELECT u.name, e.student_count\nFROM university u\nJOIN enrollment e ON u.uai = e.uai\nWHERE e.student_count > (SELECT AVG(student_count) FROM enrollment);',
+      reference: 'SELECT u.name, e.student_count FROM university u JOIN enrollment e ON u.uai = e.uai WHERE e.student_count > (SELECT AVG(student_count) FROM enrollment);',
+      hint: 'A subquery in parentheses inside WHERE runs first and gives you a single value to compare against.'
+    },
+    {
+      title: 'Challenge 3 — Subquery for a maximum',
+      description: 'Show the name and student count of the university with the most students, using a subquery instead of ORDER BY + LIMIT.',
+      starter: 'SELECT u.name, e.student_count\nFROM university u\nJOIN enrollment e ON u.uai = e.uai\nWHERE e.student_count = (SELECT MAX(student_count) FROM enrollment);',
+      reference: 'SELECT u.name, e.student_count FROM university u JOIN enrollment e ON u.uai = e.uai WHERE e.student_count = (SELECT MAX(student_count) FROM enrollment);',
+      hint: 'WHERE column = (SELECT MAX(...) ...) finds the row(s) matching the overall maximum.'
+    },
+    {
+      title: 'Challenge 4 — Your first CTE',
+      description: 'Using a CTE (WITH), compute the average student count per department, then show only the departments where that average is above 8000.',
+      starter: 'WITH dept_avg AS (\n  SELECT u.department_code, AVG(e.student_count) AS avg_students\n  FROM university u\n  JOIN enrollment e ON u.uai = e.uai\n  GROUP BY u.department_code\n)\nSELECT department_code, avg_students\nFROM dept_avg\nWHERE avg_students > 8000\nORDER BY avg_students DESC;',
+      reference: 'WITH dept_avg AS (SELECT u.department_code, AVG(e.student_count) AS avg_students FROM university u JOIN enrollment e ON u.uai = e.uai GROUP BY u.department_code) SELECT department_code, avg_students FROM dept_avg WHERE avg_students > 8000 ORDER BY avg_students DESC;',
+      orderMatters: true,
+      hint: 'WITH name AS (...) defines a temporary named result you can then SELECT FROM, just like a table.'
+    },
+    {
+      title: 'Challenge 5 — Compare to the group average',
+      description: "Using the same kind of CTE, show every university that has more students than the average of its own department (not the national average).",
+      starter: 'WITH dept_avg AS (\n  SELECT u.department_code, AVG(e.student_count) AS avg_students\n  FROM university u\n  JOIN enrollment e ON u.uai = e.uai\n  GROUP BY u.department_code\n)\nSELECT u.name, e.student_count, u.department_code\nFROM university u\nJOIN enrollment e ON u.uai = e.uai\nJOIN dept_avg d ON u.department_code = d.department_code\nWHERE e.student_count > d.avg_students;',
+      reference: 'WITH dept_avg AS (SELECT u.department_code, AVG(e.student_count) AS avg_students FROM university u JOIN enrollment e ON u.uai = e.uai GROUP BY u.department_code) SELECT u.name, e.student_count, u.department_code FROM university u JOIN enrollment e ON u.uai = e.uai JOIN dept_avg d ON u.department_code = d.department_code WHERE e.student_count > d.avg_students;',
+      hint: "Join the CTE back to university/enrollment on department_code, then compare each university's own size to its department's average."
+    },
+    {
+      title: 'Challenge 6 — Your first window function',
+      description: 'Number every university from largest to smallest by student count, using ROW_NUMBER().',
+      starter: 'SELECT u.name, e.student_count,\n  ROW_NUMBER() OVER (ORDER BY e.student_count DESC) AS rnk\nFROM university u\nJOIN enrollment e ON u.uai = e.uai;',
+      reference: 'SELECT u.name, e.student_count, ROW_NUMBER() OVER (ORDER BY e.student_count DESC) FROM university u JOIN enrollment e ON u.uai = e.uai;',
+      orderMatters: true,
+      hint: 'ROW_NUMBER() OVER (ORDER BY ...) assigns 1, 2, 3... to rows in that order — no GROUP BY involved.'
+    },
+    {
+      title: 'Challenge 7 — RANK with PARTITION BY',
+      description: 'For each department, rank its universities from largest to smallest using RANK(), restarting the ranking at 1 for every department.',
+      starter: 'SELECT u.department_code, u.name, e.student_count,\n  RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) AS dept_rank\nFROM university u\nJOIN enrollment e ON u.uai = e.uai;',
+      reference: 'SELECT u.department_code, u.name, e.student_count, RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) FROM university u JOIN enrollment e ON u.uai = e.uai;',
+      orderMatters: true,
+      hint: 'PARTITION BY department_code restarts the ranking for each department, instead of ranking across all of France at once.'
+    },
+    {
+      title: 'Challenge 8 — Filter on a window function via a CTE',
+      description: "Show only the single largest university in each department (rank 1), using the same ranking as challenge 7. You can't filter directly on a window function in the same SELECT — wrap it in a CTE first.",
+      starter: 'WITH ranked AS (\n  SELECT u.department_code, u.name, e.student_count,\n    RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) AS dept_rank\n  FROM university u\n  JOIN enrollment e ON u.uai = e.uai\n)\nSELECT department_code, name, student_count\nFROM ranked\nWHERE dept_rank = 1\nORDER BY department_code;',
+      reference: 'WITH ranked AS (SELECT u.department_code, u.name, e.student_count, RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) AS dept_rank FROM university u JOIN enrollment e ON u.uai = e.uai) SELECT department_code, name, student_count FROM ranked WHERE dept_rank = 1 ORDER BY department_code;',
+      orderMatters: true,
+      hint: "A window function's result isn't available to WHERE in the same query — compute it inside a CTE, then filter the CTE."
+    },
+    {
+      title: 'Challenge 9 — Rank nationally',
+      description: 'Using a CTE with RANK(), show the 5 largest universities nationally (rank 1 to 5, ignoring departments this time), with their department.',
+      starter: 'WITH ranked AS (\n  SELECT u.department_code, u.name, e.student_count,\n    RANK() OVER (ORDER BY e.student_count DESC) AS overall_rank\n  FROM university u\n  JOIN enrollment e ON u.uai = e.uai\n)\nSELECT department_code, name, student_count\nFROM ranked\nWHERE overall_rank <= 5\nORDER BY overall_rank;',
+      reference: 'WITH ranked AS (SELECT u.department_code, u.name, e.student_count, RANK() OVER (ORDER BY e.student_count DESC) AS overall_rank FROM university u JOIN enrollment e ON u.uai = e.uai) SELECT department_code, name, student_count FROM ranked WHERE overall_rank <= 5 ORDER BY overall_rank;',
+      orderMatters: true,
+      hint: 'Same pattern as challenge 8, but without PARTITION BY this time — and WHERE overall_rank <= 5 instead of = 1.'
+    },
+    {
+      title: 'Challenge 10 — Put it all together',
+      description: "Show the largest university in each department (as in challenge 8), but only keep departments where that top university has more than 20000 students. Sort by student count, largest first.",
+      starter: 'WITH ranked AS (\n  SELECT u.department_code, u.name, e.student_count,\n    RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) AS dept_rank\n  FROM university u\n  JOIN enrollment e ON u.uai = e.uai\n)\nSELECT department_code, name, student_count\nFROM ranked\nWHERE dept_rank = 1 AND student_count > 20000\nORDER BY student_count DESC;',
+      reference: 'WITH ranked AS (SELECT u.department_code, u.name, e.student_count, RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) AS dept_rank FROM university u JOIN enrollment e ON u.uai = e.uai) SELECT department_code, name, student_count FROM ranked WHERE dept_rank = 1 AND student_count > 20000 ORDER BY student_count DESC;',
+      orderMatters: true,
+      hint: 'Same CTE + RANK pattern as challenge 8, with an extra condition in the final WHERE and a new ORDER BY.'
+    }
+  ]
   },
-  
+
   expert: {
     label: 'Expert', color: '#f0883e',
     backendLoader: null,

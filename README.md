@@ -1,10 +1,10 @@
-# Query Real
+# QueryReal
 
 A browser-based game that teaches SQL through progressive challenges built on **real public data** — no backend, no installation, just open the HTML file and start querying.
 
 ## What is this?
 
-SQL World is a single-file HTML application where players write real SQL queries against in-browser SQLite databases (powered by [sql.js](https://sql.js.org/)). Instead of toy tables with fake rows, each difficulty level is backed by data pulled from official public APIs — currently EU trade statistics from Eurostat, with more sources planned as the project grows.
+QueryReal is a single-file HTML application where players write real SQL queries against in-browser SQLite databases (powered by [sql.js](https://sql.js.org/)). Instead of toy tables with fake rows, each difficulty level is backed by data pulled from official public APIs — currently French administrative data, water quality measurements, and higher education statistics.
 
 The game is organized into five difficulty levels, each with its own dedicated database and challenge set:
 
@@ -14,13 +14,13 @@ The game is organized into five difficulty levels, each with its own dedicated d
 - **Expert**
 - **Méga Expert**
 
-Players progress through a sequence of challenges per level, starting with basic `SELECT` / `ORDER BY` statements and building up to more complex filtering, joins, and aggregation as the levels advance.
+Players progress through a sequence of challenges per level, starting with basic `SELECT` / `ORDER BY` statements and building up to more complex filtering, joins, aggregation, subqueries, CTEs, and window functions as the levels advance.
 
 ## Why this project exists
 
-SQL World serves two purposes at once:
+QueryReal serves two purposes at once:
 
-1. **A learning tool.** Most SQL tutorials rely on synthetic, disconnected datasets. SQL World's design philosophy is built around *authenticity*: real data, real queries, and full schema visibility, so that what you practice actually resembles the kind of querying you'd do on the job.
+1. **A learning tool.** Most SQL tutorials rely on synthetic, disconnected datasets. QueryReal's design philosophy is built around *authenticity*: real data, real queries, and full schema visibility, so that what you practice actually resembles the kind of querying you'd do on the job.
 2. **A portfolio project.** It's also a demonstration piece — a way to show hands-on SQL, front-end, and data-sourcing skills through something functional and interactive, rather than a static writeup.
 
 ## Who is it for?
@@ -30,9 +30,9 @@ Primarily aimed at **students and career-changers moving into data roles** who w
 ## Architecture
 
 - **Single HTML file.** The entire application — UI, game logic, and level-specific backend scripts — lives in one self-contained file.
-- **In-browser SQLite via sql.js.** `sql-wasm.js` (the sql.js WebAssembly runtime) is loaded just before `</body>`, followed by the level's backend script (e.g. `backend-debutant.js`), which is loaded ahead of the main game script.
+- **In-browser SQLite via sql.js.** `sql-wasm.js` (the sql.js WebAssembly runtime) is loaded just before `</body>`, followed by the level's backend script (e.g. `backend-beginner.js`), which is loaded ahead of the main game script.
 - **Dynamic, API-driven schema.** Backend scripts prefer inferring fields dynamically from the live API response over hardcoding field names, so the schema stays honest to the real data source.
-- **Fallback-first reliability.** Every live data fetch has a schema-identical hardcoded fallback. If the live API call fails, the backend silently switches to fake data with the same structure — and the UI clearly labels whether the data currently in play is "réelles" (real) or "factices (repli)" (fake / fallback), so players are never misled about what they're querying.
+- **Fallback-first reliability.** Every live data fetch has a schema-identical hardcoded fallback. If the live API call fails, the backend silently switches to fake data with the same structure — and the UI clearly labels whether the data currently in play is "live" or "fallback", so players are never misled about what they're querying.
 - **Database explorer sidebar.** An Athena-style sidebar lets players expand each table to see its columns and types before writing any query.
 
 ## Current state
@@ -65,42 +65,46 @@ Three difficulty levels are currently implemented:
 - **Challenges:** Filtering by parameter, date ranges, aggregation, and multi-table queries
 - **Status:** ✅ Complete and working
 
-### Advanced — French public high schools (lycées)
+### Advanced — French public universities
 
 - **Backend:** `backend-advanced.js`
-- **Data source:** French National Education Directory (`data.education.gouv.fr`)
-  - Etalab / Ministry of Education open data
+- **Data source:** Ministère de l'Enseignement Supérieur et de la Recherche
+  - Official higher education directory: `data.enseignementsup-recherche.gouv.fr`
+  - Dataset: `fr-esr-principaux-etablissements-enseignement-superieur`
   - ✅ **No API key required** — OpenDataSoft "Explore API v2.1" with pagination
-  - Anonymous quota: 5,000 calls/day/IP (well under limit for ~27 paginated calls across ~2,600 schools)
+  - Anonymous quota: 5,000 calls/day/IP
 - **Tables:**
-  - `school` (uai, name, type, department_code, city)
-  - `enrollment` (uai, student_count)
-- **Scope:** ~2,600 public lycées nationally (filtered: `type_etablissement="Lycée"` and `statut_public_prive="Public"`)
-- **Query pattern:** `JOIN` on UAI (school identifier)
-- **Challenges:** Filtering by department, city, enrollment size; aggregation over school listings
-- **Status:** ✅ Complete and working
+  - `university` (uai, name, type, department_code, city)
+  - `enrollment` (uai, student_count) — **real 2024 enrollment data**
+- **Scope:** 58 public universities with official 2024 enrollment figures (filtered: `secteur_d_etablissement="public"` AND `typologie_d_universites_et_assimiles IS NOT NULL`, with enrollment data present)
+- **Query pattern:** `JOIN` on UAI (university identifier); introduces subqueries, CTEs, and window functions
+- **Challenges:** 
+  - Challenges 1-3: JOINs and subqueries
+  - Challenges 4-5: Common Table Expressions (CTEs) and aggregation
+  - Challenges 6-10: Window functions (ROW_NUMBER, RANK, PARTITION BY)
+- **Status:** ✅ Complete and working with real enrollment data
 
 ### Fallback strategy (all levels)
 
 All three levels implement the same reliability pattern:
 - Each backend attempts a live API call first
 - **If the API is unavailable**, the backend silently switches to a hardcoded fallback dataset with **identical schema**
-- The UI labels the data source clearly: "réelles (live)" or "factices (fallback)" so players know which dataset they're querying
+- The UI labels the data source clearly: "live" or "fallback" so players know which dataset they're querying
 - This ensures the game remains playable even if an upstream API goes down temporarily
 
-No fallback data is included for the full dataset — fallbacks are reduced samples that show the schema but not 35,000 communes or 2,600 lycées. This is intentional, so players aren't misled about query results on the live vs. fallback paths.
+Fallback data is reduced samples that show the schema but not the full dataset. This is intentional, so players aren't misled about query results on the live vs. fallback paths.
 
 ## Data sources currently in use
 
 - **geo.api.gouv.fr** (Beginner) — French Administrative Boundaries, communes with population
 - **hubeau.eaufrance.fr** (Intermediate) — Hub'Eau API, river water quality measurements
-- **data.education.gouv.fr** (Advanced) — Éducation Nationale Directory, school listings and enrollment
+- **data.enseignementsup-recherche.gouv.fr** (Advanced) — Ministère de l'ESR, universities and enrollment data
 
 ## Tech stack
 
 - **sql.js** — SQLite compiled to WebAssembly, running entirely client-side.
 - **Vanilla JS/HTML/CSS** — no framework, no build step, no backend.
-- **Public data APIs** — Eurostat and other official portals as the source of truth for each level's dataset.
+- **Public data APIs** — Official French government portals as the source of truth for each level's dataset.
 
 ## What's next
 
@@ -109,8 +113,8 @@ No fallback data is included for the full dataset — fallbacks are reduced samp
 - Continue refining the challenge design so difficulty scales smoothly:
   - Beginner: single-table filtering and sorting
   - Intermediate: multi-table joins and aggregation
-  - Advanced: moderate complexity joins with enrollment analysis
-  - Expert: complex multi-table queries with subqueries or window functions
+  - Advanced: JOINs, subqueries, CTEs, and window functions on real enrollment data
+  - Expert: complex multi-table queries with advanced techniques
   - Méga Expert: optimization challenges or very large real-world datasets
 
 ## Getting started

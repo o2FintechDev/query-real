@@ -79,27 +79,53 @@
   // ------------------------------------------------------------------
   // 2. LIVE CALL TO MINISTÈRE API (fallback to sample if unavailable)
   // ------------------------------------------------------------------
-  async function fetchBalances() {
-    var url = BASE_URL +
-      "?select=exer,numero_compte,compte_libelle,poste,nature_budgetaire,domaine_fonctionnel,solde" +
-      "&where=exer >= 2014" +
-      "&limit=100&format=json";
-    var rows = [];
-    var nextUrl = url;
-    var pageCount = 0;
-    var maxPages = 50;
+  // Helper: fetch with timeout (10 seconds)
+  async function fetchWithTimeout(url, timeout = 10000) {
+    var controller = new AbortController();
+    var timeoutId = setTimeout(function () { controller.abort(); }, timeout);
+    try {
+      var res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      return res;
+    } catch (e) {
+      clearTimeout(timeoutId);
+      throw e;
+    }
+  }
 
-    while (nextUrl && pageCount < maxPages) {
+  async function fetchBalances() {
+    // OpenDataSoft API v2.1 uses offset/limit pagination (no "next" links)
+    // Response format: { data: { total_count: N, results: [...] } }
+    // Field names from actual API: annee, compte, libellemission, nature_budgetaire, programme, balance_sortie
+    var rows = [];
+    var offset = 0;
+    var limit = 100;
+    var pageCount = 0;
+    var maxPages = 30; // Reasonable limit: 30 * 100 = 3000 rows max
+
+    while (pageCount < maxPages) {
+      var url = BASE_URL +
+        "?limit=" + limit +
+        "&offset=" + offset +
+        "&format=json";
+
       try {
-        var res = await fetch(nextUrl);
+        console.log("[backend-expert] Fetching offset=" + offset);
+        var res = await fetchWithTimeout(url, 10000);
         if (!res.ok) throw new Error("HTTP " + res.status);
         var json = await res.json();
+        
+        // Response is at top level: { total_count, results: [...] }
         var data = json && json.results;
-        if (!Array.isArray(data)) throw new Error("Unexpected response");
+        if (!Array.isArray(data)) throw new Error("Unexpected response (no results array)");
+        
         rows = rows.concat(data);
         pageCount += 1;
         console.log("[backend-expert] page " + pageCount + ": +" + data.length + " rows (total: " + rows.length + ")");
-        nextUrl = json.links && json.links.next ? json.links.next : null;
+        
+        // Stop if we got fewer rows than the limit (we're at the last page)
+        if (data.length < limit) break;
+        offset += limit;
       } catch (e) {
         console.warn("[backend-expert] API fetch failed:", e.message);
         throw e;
@@ -107,15 +133,16 @@
     }
 
     if (rows.length === 0) throw new Error("No data returned from API");
+    
     return rows.map(function (r) {
       return {
-        year: r.exer,
-        code: r.numero_compte,
-        name: r.compte_libelle,
-        category: r.poste,
-        nature: r.nature_budgetaire,
-        program: r.domaine_fonctionnel,
-        balance: r.solde
+        year: parseInt(r.annee, 10),
+        code: r.compte,
+        name: r.libellemission,
+        category: r.postes || "",
+        nature: r.nature_budgetaire || "",
+        program: r.programme || "",
+        balance: r.balance_sortie || 0
       };
     });
   }
@@ -129,23 +156,24 @@
     if (typeof initFn !== "function") {
       throw new Error(
         "sql.js is not loaded. Include " +
-        "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.12.0/sql-wasm.js first"
+        "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js first"
       );
     }
 
     var SQL = await initFn({
       locateFile: function (f) {
-        return "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.12.0/" + f;
+        return "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/" + f;
       }
     });
     var db = new SQL.Database();
 
     var balances = null;
     var source = "sample (Ministère API unavailable)";
+    
     try {
       balances = await fetchBalances();
       source = "live (Ministère de l'Économie et des Finances, " + balances.length + " records)";
-      console.log("[backend-expert] ✅ API loaded successfully");
+      console.log("[backend-expert] ✅ API loaded successfully with " + balances.length + " records");
     } catch (e) {
       console.warn("[backend-expert] ⚠️ API unavailable, falling back to sample:", e.message);
       balances = FALLBACK_BALANCES;

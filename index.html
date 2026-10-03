@@ -678,6 +678,7 @@
 <script src="backend-beginner.js"></script>
 <script src="backend-intermediate.js"></script>
 <script src="backend-advanced.js"></script>
+<script src="backend-expert.js"></script>
 <script>
 /* ============================================================
    LEVEL DEFINITIONS
@@ -902,7 +903,8 @@ var levels = {
       }
     ]
   },
-advanced: {
+
+  advanced: {
     label: 'Advanced', color: '#d29922',
     backendLoader: 'loadAdvancedDB',
     database: {
@@ -911,9 +913,7 @@ advanced: {
       link: 'https://data.enseignementsup-recherche.gouv.fr/explore/dataset/fr-esr-principaux-etablissements-enseignement-superieur/',
       tables: ['university', 'enrollment'],
       description: "Two separate calls to the official higher education directory: each public university's identity (reference table), and its official 2024 student enrollment (a second table — a 1-to-1 relationship with real data from the Ministère). 58 public universities in France with authentic 2024 enrollment figures (65 designated as 'Université', but only 58 have inscrits_2024 data).",
-      schema:
-        'university(uai, name, type, department_code, city)\n' +
-        'enrollment(uai, student_count)'
+      schema: 'university(uai, name, type, department_code, city)\nenrollment(uai, student_count)'
     },
     concepts: [
       { term: 'Subquery', explanation: 'A SELECT nested inside another query, usually in WHERE — it runs first and gives a value (or list of values) to compare against.', example: 'WHERE student_count > (SELECT AVG(student_count) FROM enrollment)' },
@@ -921,104 +921,116 @@ advanced: {
       { term: 'ROW_NUMBER() / RANK() OVER (...)', explanation: 'Window functions: number or rank rows according to an order, without collapsing them into groups the way GROUP BY does.', example: 'RANK() OVER (ORDER BY student_count DESC)' },
       { term: 'PARTITION BY', explanation: "Used inside OVER(...) to restart a window function's numbering for each group — e.g. rank universities within each department separately instead of across all of France at once.", example: 'RANK() OVER (PARTITION BY department_code ORDER BY student_count DESC)' }
     ],
-  challenges: [
-    {
-      title: 'Challenge 1 — Warm-up join',
-      description: 'Show the name, type, and student count for every public university, joining the two tables on their UAI code.',
-      starter: 'SELECT u.name, u.type, e.student_count\nFROM university u\nJOIN enrollment e ON u.uai = e.uai;',
-      reference: 'SELECT u.name, u.type, e.student_count FROM university u JOIN enrollment e ON u.uai = e.uai;',
-      hint: 'Same JOIN pattern as the Intermediate level — just with university tables now.'
-    },
-    {
-      title: 'Challenge 2 — Your first subquery',
-      description: 'Show the name and student count of every university with more students than the national average across all universities.',
-      starter: 'SELECT u.name, e.student_count\nFROM university u\nJOIN enrollment e ON u.uai = e.uai\nWHERE e.student_count > (SELECT AVG(student_count) FROM enrollment);',
-      reference: 'SELECT u.name, e.student_count FROM university u JOIN enrollment e ON u.uai = e.uai WHERE e.student_count > (SELECT AVG(student_count) FROM enrollment);',
-      hint: 'A subquery in parentheses inside WHERE runs first and gives you a single value to compare against.'
-    },
-    {
-      title: 'Challenge 3 — Subquery for a maximum',
-      description: 'Show the name and student count of the university with the most students, using a subquery instead of ORDER BY + LIMIT.',
-      starter: 'SELECT u.name, e.student_count\nFROM university u\nJOIN enrollment e ON u.uai = e.uai\nWHERE e.student_count = (SELECT MAX(student_count) FROM enrollment);',
-      reference: 'SELECT u.name, e.student_count FROM university u JOIN enrollment e ON u.uai = e.uai WHERE e.student_count = (SELECT MAX(student_count) FROM enrollment);',
-      hint: 'WHERE column = (SELECT MAX(...) ...) finds the row(s) matching the overall maximum.'
-    },
-    {
-      title: 'Challenge 4 — Your first CTE',
-      description: 'Using a CTE (WITH), compute the average student count per department, then show only the departments where that average is above 8000.',
-      starter: 'WITH dept_avg AS (\n  SELECT u.department_code, AVG(e.student_count) AS avg_students\n  FROM university u\n  JOIN enrollment e ON u.uai = e.uai\n  GROUP BY u.department_code\n)\nSELECT department_code, avg_students\nFROM dept_avg\nWHERE avg_students > 8000\nORDER BY avg_students DESC;',
-      reference: 'WITH dept_avg AS (SELECT u.department_code, AVG(e.student_count) AS avg_students FROM university u JOIN enrollment e ON u.uai = e.uai GROUP BY u.department_code) SELECT department_code, avg_students FROM dept_avg WHERE avg_students > 8000 ORDER BY avg_students DESC;',
-      orderMatters: true,
-      hint: 'WITH name AS (...) defines a temporary named result you can then SELECT FROM, just like a table.'
-    },
-    {
-      title: 'Challenge 5 — Compare to the group average',
-      description: "Using the same kind of CTE, show every university that has more students than the average of its own department (not the national average).",
-      starter: 'WITH dept_avg AS (\n  SELECT u.department_code, AVG(e.student_count) AS avg_students\n  FROM university u\n  JOIN enrollment e ON u.uai = e.uai\n  GROUP BY u.department_code\n)\nSELECT u.name, e.student_count, u.department_code\nFROM university u\nJOIN enrollment e ON u.uai = e.uai\nJOIN dept_avg d ON u.department_code = d.department_code\nWHERE e.student_count > d.avg_students;',
-      reference: 'WITH dept_avg AS (SELECT u.department_code, AVG(e.student_count) AS avg_students FROM university u JOIN enrollment e ON u.uai = e.uai GROUP BY u.department_code) SELECT u.name, e.student_count, u.department_code FROM university u JOIN enrollment e ON u.uai = e.uai JOIN dept_avg d ON u.department_code = d.department_code WHERE e.student_count > d.avg_students;',
-      hint: "Join the CTE back to university/enrollment on department_code, then compare each university's own size to its department's average."
-    },
-    {
-      title: 'Challenge 6 — Your first window function',
-      description: 'Number every university from largest to smallest by student count, using ROW_NUMBER().',
-      starter: 'SELECT u.name, e.student_count,\n  ROW_NUMBER() OVER (ORDER BY e.student_count DESC) AS rnk\nFROM university u\nJOIN enrollment e ON u.uai = e.uai;',
-      reference: 'SELECT u.name, e.student_count, ROW_NUMBER() OVER (ORDER BY e.student_count DESC) FROM university u JOIN enrollment e ON u.uai = e.uai;',
-      orderMatters: true,
-      hint: 'ROW_NUMBER() OVER (ORDER BY ...) assigns 1, 2, 3... to rows in that order — no GROUP BY involved.'
-    },
-    {
-      title: 'Challenge 7 — RANK with PARTITION BY',
-      description: 'For each department, rank its universities from largest to smallest using RANK(), restarting the ranking at 1 for every department.',
-      starter: 'SELECT u.department_code, u.name, e.student_count,\n  RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) AS dept_rank\nFROM university u\nJOIN enrollment e ON u.uai = e.uai;',
-      reference: 'SELECT u.department_code, u.name, e.student_count, RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) FROM university u JOIN enrollment e ON u.uai = e.uai;',
-      orderMatters: true,
-      hint: 'PARTITION BY department_code restarts the ranking for each department, instead of ranking across all of France at once.'
-    },
-    {
-      title: 'Challenge 8 — Filter on a window function via a CTE',
-      description: "Show only the single largest university in each department (rank 1), using the same ranking as challenge 7. You can't filter directly on a window function in the same SELECT — wrap it in a CTE first.",
-      starter: 'WITH ranked AS (\n  SELECT u.department_code, u.name, e.student_count,\n    RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) AS dept_rank\n  FROM university u\n  JOIN enrollment e ON u.uai = e.uai\n)\nSELECT department_code, name, student_count\nFROM ranked\nWHERE dept_rank = 1\nORDER BY department_code;',
-      reference: 'WITH ranked AS (SELECT u.department_code, u.name, e.student_count, RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) AS dept_rank FROM university u JOIN enrollment e ON u.uai = e.uai) SELECT department_code, name, student_count FROM ranked WHERE dept_rank = 1 ORDER BY department_code;',
-      orderMatters: true,
-      hint: "A window function's result isn't available to WHERE in the same query — compute it inside a CTE, then filter the CTE."
-    },
-    {
-      title: 'Challenge 9 — Rank nationally',
-      description: 'Using a CTE with RANK(), show the 5 largest universities nationally (rank 1 to 5, ignoring departments this time), with their department.',
-      starter: 'WITH ranked AS (\n  SELECT u.department_code, u.name, e.student_count,\n    RANK() OVER (ORDER BY e.student_count DESC) AS overall_rank\n  FROM university u\n  JOIN enrollment e ON u.uai = e.uai\n)\nSELECT department_code, name, student_count\nFROM ranked\nWHERE overall_rank <= 5\nORDER BY overall_rank;',
-      reference: 'WITH ranked AS (SELECT u.department_code, u.name, e.student_count, RANK() OVER (ORDER BY e.student_count DESC) AS overall_rank FROM university u JOIN enrollment e ON u.uai = e.uai) SELECT department_code, name, student_count FROM ranked WHERE overall_rank <= 5 ORDER BY overall_rank;',
-      orderMatters: true,
-      hint: 'Same pattern as challenge 8, but without PARTITION BY this time — and WHERE overall_rank <= 5 instead of = 1.'
-    },
-    {
-      title: 'Challenge 10 — Put it all together',
-      description: "Show the largest university in each department (as in challenge 8), but only keep departments where that top university has more than 20000 students. Sort by student count, largest first.",
-      starter: 'WITH ranked AS (\n  SELECT u.department_code, u.name, e.student_count,\n    RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) AS dept_rank\n  FROM university u\n  JOIN enrollment e ON u.uai = e.uai\n)\nSELECT department_code, name, student_count\nFROM ranked\nWHERE dept_rank = 1 AND student_count > 20000\nORDER BY student_count DESC;',
-      reference: 'WITH ranked AS (SELECT u.department_code, u.name, e.student_count, RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) AS dept_rank FROM university u JOIN enrollment e ON u.uai = e.uai) SELECT department_code, name, student_count FROM ranked WHERE dept_rank = 1 AND student_count > 20000 ORDER BY student_count DESC;',
-      orderMatters: true,
-      hint: 'Same CTE + RANK pattern as challenge 8, with an extra condition in the final WHERE and a new ORDER BY.'
-    }
-  ]
+    challenges: [
+      { title: 'Challenge 1 — Warm-up join', description: 'Show the name, type, and student count for every public university, joining the two tables on their UAI code.', starter: 'SELECT u.name, u.type, e.student_count\nFROM university u\nJOIN enrollment e ON u.uai = e.uai;', reference: 'SELECT u.name, u.type, e.student_count FROM university u JOIN enrollment e ON u.uai = e.uai;', hint: 'Same JOIN pattern as the Intermediate level — just with university tables now.' },
+      { title: 'Challenge 2 — Your first subquery', description: 'Show the name and student count of every university with more students than the national average across all universities.', starter: 'SELECT u.name, e.student_count\nFROM university u\nJOIN enrollment e ON u.uai = e.uai\nWHERE e.student_count > (SELECT AVG(student_count) FROM enrollment);', reference: 'SELECT u.name, e.student_count FROM university u JOIN enrollment e ON u.uai = e.uai WHERE e.student_count > (SELECT AVG(student_count) FROM enrollment);', hint: 'A subquery in parentheses inside WHERE runs first and gives you a single value to compare against.' },
+      { title: 'Challenge 3 — Subquery for a maximum', description: 'Show the name and student count of the university with the most students, using a subquery instead of ORDER BY + LIMIT.', starter: 'SELECT u.name, e.student_count\nFROM university u\nJOIN enrollment e ON u.uai = e.uai\nWHERE e.student_count = (SELECT MAX(student_count) FROM enrollment);', reference: 'SELECT u.name, e.student_count FROM university u JOIN enrollment e ON u.uai = e.uai WHERE e.student_count = (SELECT MAX(student_count) FROM enrollment);', hint: 'WHERE column = (SELECT MAX(...) ...) finds the row(s) matching the overall maximum.' },
+      { title: 'Challenge 4 — Your first CTE', description: 'Using a CTE (WITH), compute the average student count per department, then show only the departments where that average is above 8000.', starter: 'WITH dept_avg AS (\n  SELECT u.department_code, AVG(e.student_count) AS avg_students\n  FROM university u\n  JOIN enrollment e ON u.uai = e.uai\n  GROUP BY u.department_code\n)\nSELECT department_code, avg_students\nFROM dept_avg\nWHERE avg_students > 8000\nORDER BY avg_students DESC;', reference: 'WITH dept_avg AS (SELECT u.department_code, AVG(e.student_count) AS avg_students FROM university u JOIN enrollment e ON u.uai = e.uai GROUP BY u.department_code) SELECT department_code, avg_students FROM dept_avg WHERE avg_students > 8000 ORDER BY avg_students DESC;', orderMatters: true, hint: 'WITH name AS (...) defines a temporary named result you can then SELECT FROM, just like a table.' },
+      { title: 'Challenge 5 — Compare to the group average', description: "Using the same kind of CTE, show every university that has more students than the average of its own department (not the national average).", starter: 'WITH dept_avg AS (\n  SELECT u.department_code, AVG(e.student_count) AS avg_students\n  FROM university u\n  JOIN enrollment e ON u.uai = e.uai\n  GROUP BY u.department_code\n)\nSELECT u.name, e.student_count, u.department_code\nFROM university u\nJOIN enrollment e ON u.uai = e.uai\nJOIN dept_avg d ON u.department_code = d.department_code\nWHERE e.student_count > d.avg_students;', reference: 'WITH dept_avg AS (SELECT u.department_code, AVG(e.student_count) AS avg_students FROM university u JOIN enrollment e ON u.uai = e.uai GROUP BY u.department_code) SELECT u.name, e.student_count, u.department_code FROM university u JOIN enrollment e ON u.uai = e.uai JOIN dept_avg d ON u.department_code = d.department_code WHERE e.student_count > d.avg_students;', hint: "Join the CTE back to university/enrollment on department_code, then compare each university's own size to its department's average." },
+      { title: 'Challenge 6 — Your first window function', description: 'Number every university from largest to smallest by student count, using ROW_NUMBER().', starter: 'SELECT u.name, e.student_count,\n  ROW_NUMBER() OVER (ORDER BY e.student_count DESC) AS rnk\nFROM university u\nJOIN enrollment e ON u.uai = e.uai;', reference: 'SELECT u.name, e.student_count, ROW_NUMBER() OVER (ORDER BY e.student_count DESC) FROM university u JOIN enrollment e ON u.uai = e.uai;', orderMatters: true, hint: 'ROW_NUMBER() OVER (ORDER BY ...) assigns 1, 2, 3... to rows in that order — no GROUP BY involved.' },
+      { title: 'Challenge 7 — RANK with PARTITION BY', description: 'For each department, rank its universities from largest to smallest using RANK(), restarting the ranking at 1 for every department.', starter: 'SELECT u.department_code, u.name, e.student_count,\n  RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) AS dept_rank\nFROM university u\nJOIN enrollment e ON u.uai = e.uai;', reference: 'SELECT u.department_code, u.name, e.student_count, RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) FROM university u JOIN enrollment e ON u.uai = e.uai;', orderMatters: true, hint: 'PARTITION BY department_code restarts the ranking for each department, instead of ranking across all of France at once.' },
+      { title: 'Challenge 8 — Filter on a window function via a CTE', description: "Show only the single largest university in each department (rank 1), using the same ranking as challenge 7. You can't filter directly on a window function in the same SELECT — wrap it in a CTE first.", starter: 'WITH ranked AS (\n  SELECT u.department_code, u.name, e.student_count,\n    RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) AS dept_rank\n  FROM university u\n  JOIN enrollment e ON u.uai = e.uai\n)\nSELECT department_code, name, student_count\nFROM ranked\nWHERE dept_rank = 1\nORDER BY department_code;', reference: 'WITH ranked AS (SELECT u.department_code, u.name, e.student_count, RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) AS dept_rank FROM university u JOIN enrollment e ON u.uai = e.uai) SELECT department_code, name, student_count FROM ranked WHERE dept_rank = 1 ORDER BY department_code;', orderMatters: true, hint: "A window function's result isn't available to WHERE in the same query — compute it inside a CTE, then filter the CTE." },
+      { title: 'Challenge 9 — Rank nationally', description: 'Using a CTE with RANK(), show the 5 largest universities nationally (rank 1 to 5, ignoring departments this time), with their department.', starter: 'WITH ranked AS (\n  SELECT u.department_code, u.name, e.student_count,\n    RANK() OVER (ORDER BY e.student_count DESC) AS overall_rank\n  FROM university u\n  JOIN enrollment e ON u.uai = e.uai\n)\nSELECT department_code, name, student_count\nFROM ranked\nWHERE overall_rank <= 5\nORDER BY overall_rank;', reference: 'WITH ranked AS (SELECT u.department_code, u.name, e.student_count, RANK() OVER (ORDER BY e.student_count DESC) AS overall_rank FROM university u JOIN enrollment e ON u.uai = e.uai) SELECT department_code, name, student_count FROM ranked WHERE overall_rank <= 5 ORDER BY overall_rank;', orderMatters: true, hint: 'Same pattern as challenge 8, but without PARTITION BY this time — and WHERE overall_rank <= 5 instead of = 1.' },
+      { title: 'Challenge 10 — Put it all together', description: "Show the largest university in each department (as in challenge 8), but only keep departments where that top university has more than 20000 students. Sort by student count, largest first.", starter: 'WITH ranked AS (\n  SELECT u.department_code, u.name, e.student_count,\n    RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) AS dept_rank\n  FROM university u\n  JOIN enrollment e ON u.uai = e.uai\n)\nSELECT department_code, name, student_count\nFROM ranked\nWHERE dept_rank = 1 AND student_count > 20000\nORDER BY student_count DESC;', reference: 'WITH ranked AS (SELECT u.department_code, u.name, e.student_count, RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) AS dept_rank FROM university u JOIN enrollment e ON u.uai = e.uai) SELECT department_code, name, student_count FROM ranked WHERE dept_rank = 1 AND student_count > 20000 ORDER BY student_count DESC;', orderMatters: true, hint: 'Same CTE + RANK pattern as challenge 8, with an extra condition in the final WHERE and a new ORDER BY.' }
+    ]
   },
 
   expert: {
     label: 'Expert', color: '#f0883e',
-    backendLoader: null,
+    backendLoader: 'loadExpertDB',
     database: {
-      name: '(coming soon) Public health data over time',
-      source: 'data.gouv.fr / Santé publique France',
-      description: 'This level will introduce time-series analysis, stacked CTEs, and functions like LAG/LEAD to compute growth rates.',
-      schema: '(schema not defined yet)'
+      name: 'French State Accounting (CGE 2014–2024)',
+      source: "Ministère de l'Économie et des Finances — <code>data.economie.gouv.fr</code>",
+      link: 'https://data.economie.gouv.fr/explore/dataset/balances_des_comptes_etat/',
+      tables: ['balance', 'account_ref'],
+      description: 'Compte Général de l\'État (CGE) — 10+ years of accounting balances for the French state. Each balance records assets, liabilities, revenues, and expenses by account, budget nature, and functional program. Demonstrates time-series analysis with LAG/LEAD and stacked CTEs.',
+      schema: 'balance(year, account_code, account_name, posting_category, nature_budgetaire, program, balance)\naccount_ref(account_code, account_name, posting_category)'
     },
     concepts: [
-      { term: 'Stacked CTEs', explanation: 'Several successive WITH clauses, each building on the previous one.', example: 'WITH a AS (...), b AS (SELECT ... FROM a) SELECT * FROM b;' },
-      { term: 'LAG() / LEAD()', explanation: 'Fetches the value from the previous or next row, useful for comparing a period to the one before it.', example: 'LAG(value) OVER (ORDER BY year)' }
+      { term: 'LAG() / LEAD()', explanation: 'Window functions that fetch a value from the previous or next row in sorted order — essential for time-series and year-over-year comparisons.', example: 'LAG(balance) OVER (ORDER BY year)' },
+      { term: 'Stacked CTEs', explanation: 'Multiple WITH clauses in sequence, each building on previous ones — makes complex multi-step analyses readable.', example: 'WITH a AS (...), b AS (SELECT ... FROM a), c AS (SELECT ... FROM b) SELECT * FROM c;' },
+      { term: 'CASE WHEN (in aggregates)', explanation: 'Conditional logic inside SUM/COUNT to selectively aggregate rows by category.', example: 'SUM(CASE WHEN category="Expenses" THEN amount ELSE 0 END)' },
+      { term: 'PARTITION BY (in window functions)', explanation: 'Restart numbering or calculations for each group, instead of across all rows.', example: 'ROW_NUMBER() OVER (PARTITION BY program ORDER BY balance DESC)' },
+      { term: 'ABS() and percentage math', explanation: 'Absolute value for measuring volatility; percentage change = (current - previous) / previous * 100.', example: 'ABS(value - prev_value), ROUND(..., 2)' }
     ],
     challenges: [
       {
-        title: 'Challenge 1 — Coming soon',
-        description: "This level doesn't have a database or challenges connected yet.",
-        starter: ''
+        title: 'Challenge 1 — Total balance by year',
+        description: 'Show the total balance (sum of all balances) for each year, sorted from oldest to newest.',
+        starter: 'SELECT year, SUM(balance) AS total_balance\nFROM balance\nGROUP BY year\nORDER BY year;',
+        reference: 'SELECT year, SUM(balance) FROM balance GROUP BY year ORDER BY year;',
+        hint: 'GROUP BY year to aggregate, then ORDER BY year to sort chronologically.'
+      },
+      {
+        title: 'Challenge 2 — Year-over-year change with LAG()',
+        description: 'For each year, show the total balance, the previous year\'s balance using LAG(), and the year-over-year change. Sort by year.',
+        starter: 'SELECT \n  year,\n  SUM(balance) AS total_balance,\n  LAG(SUM(balance)) OVER (ORDER BY year) AS previous_year_balance,\n  SUM(balance) - LAG(SUM(balance)) OVER (ORDER BY year) AS yoy_change\nFROM balance\nGROUP BY year\nORDER BY year;',
+        reference: 'SELECT year, SUM(balance), LAG(SUM(balance)) OVER (ORDER BY year), SUM(balance) - LAG(SUM(balance)) OVER (ORDER BY year) FROM balance GROUP BY year ORDER BY year;',
+        orderMatters: true,
+        hint: 'LAG() OVER (ORDER BY year) fetches the previous row\'s value. The first row will have NULL.'
+      },
+      {
+        title: 'Challenge 3 — Percentage change year-over-year',
+        description: 'For each year (starting 2015), show the year, total balance, and percentage change from the previous year. Use ROUND(..., 2) for formatting.',
+        starter: 'SELECT \n  year,\n  SUM(balance) AS total_balance,\n  ROUND(100.0 * (SUM(balance) - LAG(SUM(balance)) OVER (ORDER BY year)) \n        / LAG(SUM(balance)) OVER (ORDER BY year), 2) AS pct_change\nFROM balance\nGROUP BY year\nHAVING year > 2014\nORDER BY year;',
+        reference: 'SELECT year, SUM(balance), ROUND(100.0 * (SUM(balance) - LAG(SUM(balance)) OVER (ORDER BY year)) / LAG(SUM(balance)) OVER (ORDER BY year), 2) FROM balance GROUP BY year HAVING year > 2014 ORDER BY year;',
+        orderMatters: true,
+        hint: 'Percentage change = (current − previous) / previous × 100. HAVING filters after aggregation.'
+      },
+      {
+        title: 'Challenge 4 — CTE: Group by posting category',
+        description: 'Using a WITH clause, create a CTE called `yearly_by_posting` that groups balances by year and posting_category. Then SELECT to show year, posting_category, and the total amount. Sort by year, then posting_category.',
+        starter: 'WITH yearly_by_posting AS (\n  SELECT \n    year,\n    posting_category,\n    SUM(balance) AS total_amount\n  FROM balance\n  GROUP BY year, posting_category\n)\nSELECT year, posting_category, total_amount\nFROM yearly_by_posting\nORDER BY year, posting_category;',
+        reference: 'WITH yearly_by_posting AS (SELECT year, posting_category, SUM(balance) AS total_amount FROM balance GROUP BY year, posting_category) SELECT year, posting_category, total_amount FROM yearly_by_posting ORDER BY year, posting_category;',
+        orderMatters: true,
+        hint: 'A CTE is a temporary named result you build with WITH, then query from like a table. Reference the bare SUM(balance) in the outer SELECT.'
+      },
+      {
+        title: 'Challenge 5 — Stacked CTE: Revenue vs Expenses',
+        description: 'Build two CTEs: `revenues` (sum where posting_category=\'Revenue\') and `expenses` (sum where posting_category=\'Expenses\'), both grouped by year. Join them on year and show year, revenue total, expense total, and the sum. Sort by year.',
+        starter: 'WITH revenues AS (\n  SELECT year, SUM(balance) AS total_revenue\n  FROM balance\n  WHERE posting_category = \'Revenue\'\n  GROUP BY year\n),\nexpenses AS (\n  SELECT year, SUM(balance) AS total_expense\n  FROM balance\n  WHERE posting_category = \'Expenses\'\n  GROUP BY year\n)\nSELECT r.year, r.total_revenue, e.total_expense, r.total_revenue + e.total_expense\nFROM revenues r\nJOIN expenses e ON r.year = e.year\nORDER BY r.year;',
+        reference: 'WITH revenues AS (SELECT year, SUM(balance) AS total_revenue FROM balance WHERE posting_category=\'Revenue\' GROUP BY year),expenses AS (SELECT year, SUM(balance) AS total_expense FROM balance WHERE posting_category=\'Expenses\' GROUP BY year) SELECT r.year, r.total_revenue, e.total_expense, r.total_revenue + e.total_expense FROM revenues r JOIN expenses e ON r.year = e.year ORDER BY r.year;',
+        orderMatters: true,
+        hint: 'Two CTEs separated by a comma. In the outer SELECT, reference the alias names (total_revenue, total_expense) with the CTE aliases (r, e).'
+      },
+      {
+        title: 'Challenge 6 — Stacked CTE: Add LAG() for trends',
+        description: 'Extend Challenge 5: build `revenues` and `expenses` CTEs, then create a third CTE called `balance_trend` that combines both and adds LAG(). SELECT from `balance_trend` showing year and changes. Sort by year.',
+        starter: 'WITH revenues AS (\n  SELECT year, SUM(balance) AS total_revenue\n  FROM balance\n  WHERE posting_category = \'Revenue\'\n  GROUP BY year\n),\nexpenses AS (\n  SELECT year, SUM(balance) AS total_expense\n  FROM balance\n  WHERE posting_category = \'Expenses\'\n  GROUP BY year\n),\nbalance_trend AS (\n  SELECT \n    r.year,\n    r.total_revenue,\n    LAG(r.total_revenue) OVER (ORDER BY r.year) AS revenue_prev,\n    r.total_revenue - LAG(r.total_revenue) OVER (ORDER BY r.year) AS revenue_change,\n    e.total_expense,\n    LAG(e.total_expense) OVER (ORDER BY r.year) AS expense_prev,\n    e.total_expense - LAG(e.total_expense) OVER (ORDER BY r.year) AS expense_change\n  FROM revenues r\n  JOIN expenses e ON r.year = e.year\n)\nSELECT year, r.total_revenue, revenue_prev, revenue_change, e.total_expense, expense_prev, expense_change\nFROM balance_trend\nORDER BY year;',
+        reference: 'WITH revenues AS (SELECT year, SUM(balance) AS total_revenue FROM balance WHERE posting_category=\'Revenue\' GROUP BY year),expenses AS (SELECT year, SUM(balance) AS total_expense FROM balance WHERE posting_category=\'Expenses\' GROUP BY year),balance_trend AS (SELECT r.year,r.total_revenue,LAG(r.total_revenue) OVER (ORDER BY r.year) AS revenue_prev,r.total_revenue - LAG(r.total_revenue) OVER (ORDER BY r.year) AS revenue_change,e.total_expense,LAG(e.total_expense) OVER (ORDER BY r.year) AS expense_prev,e.total_expense - LAG(e.total_expense) OVER (ORDER BY r.year) AS expense_change FROM revenues r JOIN expenses e ON r.year = e.year) SELECT year, total_revenue, revenue_prev, revenue_change, total_expense, expense_prev, expense_change FROM balance_trend ORDER BY year;',
+        orderMatters: true,
+        hint: 'Three-level stacked CTE: aggregate separately → join them → add LAG() logic. Use aliases in the third CTE so the final SELECT works cleanly.'
+      },
+      {
+        title: 'Challenge 7 — Top 5 budget programs',
+        description: 'Find the top 5 programs (by total balance) within each posting_category. Use ROW_NUMBER() OVER (PARTITION BY ...) to rank. Show program, posting_category, total, and rank. Sort by posting_category, then rank.',
+        starter: 'WITH program_totals AS (\n  SELECT program, posting_category, SUM(balance) AS total\n  FROM balance\n  WHERE program IS NOT NULL AND program != \'\'\n  GROUP BY program, posting_category\n),\nranked AS (\n  SELECT program, posting_category, total,\n    ROW_NUMBER() OVER (PARTITION BY posting_category ORDER BY total DESC) AS rnk\n  FROM program_totals\n)\nSELECT program, posting_category, total, rnk\nFROM ranked\nWHERE rnk <= 5\nORDER BY posting_category, rnk;',
+        reference: 'WITH program_totals AS (SELECT program, posting_category, SUM(balance) AS total FROM balance WHERE program IS NOT NULL AND program != \'\' GROUP BY program, posting_category),ranked AS (SELECT program, posting_category, total, ROW_NUMBER() OVER (PARTITION BY posting_category ORDER BY total DESC) AS rnk FROM program_totals) SELECT program, posting_category, total, rnk FROM ranked WHERE rnk <= 5 ORDER BY posting_category, rnk;',
+        orderMatters: true,
+        hint: 'PARTITION BY posting_category restarts numbering for each category, so you get top 5 within each.'
+      },
+      {
+        title: 'Challenge 8 — Most volatile budget lines',
+        description: 'Find the top 10 programs with the highest year-over-year volatility. Build a CTE for yearly aggregation, apply LAG() to measure absolute changes, sum per program, and rank. Show program, posting_category, and volatility.',
+        starter: 'WITH program_yearly AS (\n  SELECT program, year, posting_category, SUM(balance) AS yearly_total\n  FROM balance\n  WHERE program IS NOT NULL AND program != \'\'\n  GROUP BY program, year, posting_category\n),\nprogram_changes AS (\n  SELECT program, posting_category, year,\n    yearly_total,\n    LAG(yearly_total) OVER (PARTITION BY program, posting_category ORDER BY year) AS prev_total,\n    ABS(yearly_total - LAG(yearly_total) OVER (PARTITION BY program, posting_category ORDER BY year)) AS abs_change\n  FROM program_yearly\n),\nprogram_volatility AS (\n  SELECT program, posting_category, SUM(abs_change) AS total_volatility\n  FROM program_changes\n  GROUP BY program, posting_category\n),\nranked_volatility AS (\n  SELECT program, posting_category, total_volatility,\n    ROW_NUMBER() OVER (ORDER BY total_volatility DESC) AS rnk\n  FROM program_volatility\n)\nSELECT program, posting_category, total_volatility\nFROM ranked_volatility\nWHERE rnk <= 10\nORDER BY rnk;',
+        reference: 'WITH program_yearly AS (SELECT program, year, posting_category, SUM(balance) AS yearly_total FROM balance WHERE program IS NOT NULL AND program != \'\' GROUP BY program, year, posting_category),program_changes AS (SELECT program, posting_category, year, yearly_total, LAG(yearly_total) OVER (PARTITION BY program, posting_category ORDER BY year) AS prev_total, ABS(yearly_total - LAG(yearly_total) OVER (PARTITION BY program, posting_category ORDER BY year)) AS abs_change FROM program_yearly),program_volatility AS (SELECT program, posting_category, SUM(abs_change) AS total_volatility FROM program_changes GROUP BY program, posting_category),ranked_volatility AS (SELECT program, posting_category, total_volatility, ROW_NUMBER() OVER (ORDER BY total_volatility DESC) AS rnk FROM program_volatility) SELECT program, posting_category, total_volatility FROM ranked_volatility WHERE rnk <= 10 ORDER BY rnk;',
+        orderMatters: true,
+        hint: 'A 4-level stacked CTE: aggregate yearly → apply LAG() → sum changes → rank. Use aliases (total_volatility, rnk) to make the outer SELECT readable.'
+      },
+      {
+        title: 'Challenge 9 — Full balance sheet (2024)',
+        description: 'For 2024 only, create a balance sheet: Assets, Liabilities, Revenues, Expenses. Use four CTEs (one per category) and cross-join to show all in one row.',
+        starter: 'WITH assets_2024 AS (\n  SELECT SUM(balance) AS assets\n  FROM balance\n  WHERE posting_category = \'Assets\' AND year = 2024\n),\nliabilities_2024 AS (\n  SELECT SUM(balance) AS liabilities\n  FROM balance\n  WHERE posting_category = \'Liabilities\' AND year = 2024\n),\nrevenues_2024 AS (\n  SELECT SUM(balance) AS revenues\n  FROM balance\n  WHERE posting_category = \'Revenue\' AND year = 2024\n),\nexpenses_2024 AS (\n  SELECT SUM(balance) AS expenses\n  FROM balance\n  WHERE posting_category = \'Expenses\' AND year = 2024\n)\nSELECT \n  2024 AS year,\n  a.assets,\n  l.liabilities,\n  r.revenues,\n  e.expenses,\n  a.assets - l.liabilities + r.revenues + e.expenses AS net_position\nFROM assets_2024 a, liabilities_2024 l, revenues_2024 r, expenses_2024 e;',
+        reference: 'WITH assets_2024 AS (SELECT SUM(balance) AS assets FROM balance WHERE posting_category=\'Assets\' AND year=2024),liabilities_2024 AS (SELECT SUM(balance) AS liabilities FROM balance WHERE posting_category=\'Liabilities\' AND year=2024),revenues_2024 AS (SELECT SUM(balance) AS revenues FROM balance WHERE posting_category=\'Revenue\' AND year=2024),expenses_2024 AS (SELECT SUM(balance) AS expenses FROM balance WHERE posting_category=\'Expenses\' AND year=2024) SELECT 2024, a.assets, l.liabilities, r.revenues, e.expenses, a.assets - l.liabilities + r.revenues + e.expenses FROM assets_2024 a, liabilities_2024 l, revenues_2024 r, expenses_2024 e;',
+        hint: 'Four independent CTEs (no joins), cross-joined with comma syntax. Each CTE names its SUM(balance) with an alias.'
+      },
+      {
+        title: 'Challenge 10 — Balance sheet trends (FINAL)',
+        description: 'The capstone: build a multi-year balance sheet (2014–2024) with Assets, Liabilities, Revenues, Expenses, Net Position, and YoY changes. Use stacked CTEs, CASE WHEN for categorization, and LAG(). Sort by year.',
+        starter: 'WITH yearly_balances AS (\n  SELECT \n    year,\n    SUM(CASE WHEN posting_category = \'Assets\' THEN balance ELSE 0 END) AS assets,\n    SUM(CASE WHEN posting_category = \'Liabilities\' THEN balance ELSE 0 END) AS liabilities,\n    SUM(CASE WHEN posting_category = \'Revenue\' THEN balance ELSE 0 END) AS revenues,\n    SUM(CASE WHEN posting_category = \'Expenses\' THEN balance ELSE 0 END) AS expenses\n  FROM balance\n  GROUP BY year\n),\nwith_net_position AS (\n  SELECT \n    year,\n    assets,\n    liabilities,\n    revenues,\n    expenses,\n    assets - liabilities + revenues + expenses AS net_position\n  FROM yearly_balances\n),\nwith_trends AS (\n  SELECT \n    year,\n    assets,\n    liabilities,\n    revenues,\n    expenses,\n    net_position,\n    LAG(net_position) OVER (ORDER BY year) AS prev_net_position,\n    net_position - LAG(net_position) OVER (ORDER BY year) AS net_change,\n    ROUND(100.0 * (net_position - LAG(net_position) OVER (ORDER BY year)) / \n          LAG(net_position) OVER (ORDER BY year), 2) AS pct_change\n  FROM with_net_position\n)\nSELECT \n  year, assets, liabilities, revenues, expenses, net_position, \n  prev_net_position, net_change, pct_change\nFROM with_trends\nORDER BY year;',
+        reference: 'WITH yearly_balances AS (SELECT year,SUM(CASE WHEN posting_category=\'Assets\' THEN balance ELSE 0 END) AS assets,SUM(CASE WHEN posting_category=\'Liabilities\' THEN balance ELSE 0 END) AS liabilities,SUM(CASE WHEN posting_category=\'Revenue\' THEN balance ELSE 0 END) AS revenues,SUM(CASE WHEN posting_category=\'Expenses\' THEN balance ELSE 0 END) AS expenses FROM balance GROUP BY year),with_net_position AS (SELECT year,assets,liabilities,revenues,expenses,assets - liabilities + revenues + expenses AS net_position FROM yearly_balances),with_trends AS (SELECT year,assets,liabilities,revenues,expenses,net_position,LAG(net_position) OVER (ORDER BY year) AS prev_net_position,net_position - LAG(net_position) OVER (ORDER BY year) AS net_change,ROUND(100.0*(net_position - LAG(net_position) OVER (ORDER BY year))/LAG(net_position) OVER (ORDER BY year),2) AS pct_change FROM with_net_position) SELECT year,assets,liabilities,revenues,expenses,net_position,prev_net_position,net_change,pct_change FROM with_trends ORDER BY year;',
+        orderMatters: true,
+        hint: 'Three-level stacked CTE: aggregate (CASE WHEN) → compute net → add LAG() for trends. This is the comprehensive finale of this level.'
       }
     ]
   },
@@ -1027,20 +1039,16 @@ advanced: {
     label: 'Mega Expert', color: '#bc8cff',
     backendLoader: null,
     database: {
-      name: '(coming soon) SNCF punctuality or road accidents',
-      source: 'data.sncf.com or data.gouv.fr (BAAC)',
-      description: "This level will introduce anomaly detection (deviation from the mean / standard deviation) and complex multi-CTE queries. Technical note: SQLite has no native STDDEV, so it will need to be computed by hand via a subquery on the mean.",
+      name: '(coming soon)',
+      source: 'data.gouv.fr',
+      description: "This level doesn't have a connected database yet.",
       schema: '(schema not defined yet)'
     },
     concepts: [
-      { term: 'Standard deviation (computed by hand)', explanation: "SQLite has no STDDEV function: compute the mean, then the mean of the squared deviations.", example: 'AVG((value - mean) * (value - mean))' }
+      { term: 'Coming soon', explanation: 'Mega Expert level challenges are being designed.', example: '' }
     ],
     challenges: [
-      {
-        title: 'Challenge 1 — Coming soon',
-        description: "This level doesn't have a database or challenges connected yet.",
-        starter: ''
-      }
+      { title: 'Challenge 1 — Coming soon', description: "This level doesn't have a database or challenges connected yet.", starter: '' }
     ]
   }
 };
@@ -1073,7 +1081,6 @@ function getProgress(levelId) {
       answers: lvl.challenges.map(function () { return ''; })
     };
   }
-  // Migration: progress saved before "answers" was added
   if (!all[levelId].answers) {
     all[levelId].answers = lvl.challenges.map(function () { return ''; });
   }
@@ -1092,8 +1099,9 @@ function isLevelCompleted(levelId) {
 }
 
 function isLevelUnlocked(levelId) {
+  var levelsOrder = ['beginner', 'intermediate', 'advanced', 'expert', 'mega'];
   var idx = levelsOrder.indexOf(levelId);
-  if (idx <= 0) return true; // first level is always open
+  if (idx <= 0) return true;
   var previous = levelsOrder[idx - 1];
   return isLevelCompleted(previous);
 }
@@ -1102,6 +1110,7 @@ function isLevelUnlocked(levelId) {
    UPDATE THE "LEVELS" PAGE (locks + progress)
    ============================================================ */
 function updateLevelsPageUI() {
+  var levelsOrder = ['beginner', 'intermediate', 'advanced', 'expert', 'mega'];
   levelsOrder.forEach(function (id) {
     var btn = document.getElementById('btn-' + id);
     var badge = document.getElementById('progress-' + id);
@@ -1136,43 +1145,7 @@ function showPage(id) {
 }
 
 /* ============================================================
-   LOADING SQL.JS DATABASES (one per level, cached)
-   ============================================================ */
-var dbCache = {};
-var dbPromiseCache = {};
-
-// Explicitly checks sqlite_master before creating a table, instead of
-// relying on "CREATE TABLE IF NOT EXISTS ... AS SELECT" — this sql.js
-// build's SQLite engine doesn't reliably honor IF NOT EXISTS combined
-// with AS SELECT (observed throwing "table already exists" instead of
-// silently skipping), so we check-then-create ourselves.
-function ensureTableExists(db, table, selectBody) {
-  var check = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='" + table + "';");
-  var exists = check.length > 0 && check[0].values.length > 0;
-  if (!exists) {
-    db.run('CREATE TABLE ' + table + ' AS ' + selectBody + ';');
-  }
-}
-
-function ensureDB(levelId) {
-  var lvl = levels[levelId];
-  if (!lvl.backendLoader) return Promise.resolve(null);
-  if (dbCache[levelId]) return Promise.resolve(dbCache[levelId]);
-  if (dbPromiseCache[levelId]) return dbPromiseCache[levelId];
-  var loaderFn = window[lvl.backendLoader];
-  dbPromiseCache[levelId] = loaderFn().then(function (db) {
-    dbCache[levelId] = db;
-    return db;
-  });
-  return dbPromiseCache[levelId];
-}
-
-/* ============================================================
    DATABASE PANEL & SQL TIPS PANEL
-   ------------------------------------------------------------
-   Rendered into two separate containers so they can live either
-   as static side columns (desktop) or as independent slide-in
-   drawers (mobile) — same content, different CSS positioning.
    ============================================================ */
 function renderDatabasePanel(level) {
   var html = '<h4>' + level.database.name + '</h4>';
@@ -1200,7 +1173,7 @@ function renderTipsPanel(level) {
 }
 
 /* ============================================================
-   MOBILE DRAWERS (database panel / SQL tips panel)
+   MOBILE DRAWERS
    ============================================================ */
 function openDrawer(panelId) {
   document.getElementById(panelId).classList.add('open');
@@ -1214,8 +1187,32 @@ function closeDrawers() {
 }
 
 /* ============================================================
-   RENDERING A CHALLENGE
+   DATABASE CACHING & LOADING
    ============================================================ */
+var dbCache = {};
+var dbPromiseCache = {};
+
+function ensureTableExists(db, table, selectBody) {
+  var check = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='" + table + "';");
+  var exists = check.length > 0 && check[0].values.length > 0;
+  if (!exists) {
+    db.run('CREATE TABLE ' + table + ' AS ' + selectBody + ';');
+  }
+}
+
+function ensureDB(levelId) {
+  var lvl = levels[levelId];
+  if (!lvl.backendLoader) return Promise.resolve(null);
+  if (dbCache[levelId]) return Promise.resolve(dbCache[levelId]);
+  if (dbPromiseCache[levelId]) return dbPromiseCache[levelId];
+  var loaderFn = window[lvl.backendLoader];
+  dbPromiseCache[levelId] = loaderFn().then(function (db) {
+    dbCache[levelId] = db;
+    return db;
+  });
+  return dbPromiseCache[levelId];
+}
+
 var currentLevel = 'beginner';
 var currentChallengeIndex = 0;
 

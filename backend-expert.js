@@ -1,90 +1,97 @@
 /* ============================================================
-   QUERYREAL — EXPERT LEVEL BACKEND (v2 — French State Accounting)
+   QUERYREAL — EXPERT LEVEL BACKEND (v3 — French Health Budget)
    ============================================================
    Source: Ministère de l'Économie et des Finances
    https://data.economie.gouv.fr/explore/dataset/balances_des_comptes_etat/
    
-   Compte Général de l'État (CGE) — Public accounting data 2014-2024
+   Mission "Santé" budget analysis 2015-2025
+   Focus: libellemission = 'Santé' with real accounting balances
    
    Two tables:
-     balance     → fact table (year, account_code, account_name, posting_category, nature_budgetaire, program, balance)
-     account_ref → reference table (account_code, account_name, posting_category)
+     balance     → fact table (year, mission, posting_category, program, 
+                   account_code, nature_budgetaire, balance)
+     posting_ref → reference table (posting_category, description)
    ============================================================ */
 
 (function (global) {
   "use strict";
 
   var BASE_URL = "https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/balances_des_comptes_etat/records";
+  var WHERE_FILTER = "libellemission='Santé' AND year(annee)>=2015 AND year(annee)<=2025";
 
   // ------------------------------------------------------------------
-  // 1. FALLBACK DATA (SAMPLE — representative French state accounts)
+  // 1. FALLBACK DATA (SAMPLE — representative Health budget 2015-2025)
   // ------------------------------------------------------------------
-  var FALLBACK_BALANCES = [
-    { year: 2014, code: "1001", name: "Trésor Public", category: "Assets", nature: "LOLF_Titre_1", program: "Tresorerie", balance: 45000000 },
-    { year: 2014, code: "2001", name: "Dettes Publiques", category: "Liabilities", nature: "LOLF_Titre_2", program: "Tresorerie", balance: -125000000 },
-    { year: 2014, code: "7001", name: "Recettes Fiscales", category: "Revenue", nature: "LOLF_Titre_3", program: "Fiscalite", balance: 250000000 },
-    { year: 2014, code: "6001", name: "Dépenses Fonctionnement", category: "Expenses", nature: "LOLF_Titre_4", program: "Fonctionnement", balance: -180000000 },
+  function buildLargeFallbackDataset() {
+    var rows = [];
+    var years = [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025];
+    var categories = [
+      "Charges de fonctionnement direct",
+      "Achats, variations de stocks et prestations externes",
+      "Autres charges de fonctionnement",
+      "Dotations aux amortissements"
+    ];
+    var programs = [
+      "PREVENTION ET SANTE ENVIRONNEMENTALE",
+      "SANTE DE LA POPULATION",
+      "SANTE PUBLIQUE",
+      "SECURITE SANITAIRE",
+      "SOINS ET URGENCES"
+    ];
+    var baseAccounts = [
+      { code: "6001", name: "Personnel médical" },
+      { code: "6050", name: "Personnels administratifs" },
+      { code: "6100", name: "Matières premières" },
+      { code: "6150", name: "Prestations externes" },
+      { code: "6200", name: "Services extérieurs" },
+      { code: "6250", name: "Télécommunications" },
+      { code: "6800", name: "Autres charges" }
+    ];
     
-    { year: 2015, code: "1001", name: "Trésor Public", category: "Assets", nature: "LOLF_Titre_1", program: "Tresorerie", balance: 48000000 },
-    { year: 2015, code: "2001", name: "Dettes Publiques", category: "Liabilities", nature: "LOLF_Titre_2", program: "Tresorerie", balance: -135000000 },
-    { year: 2015, code: "7001", name: "Recettes Fiscales", category: "Revenue", nature: "LOLF_Titre_3", program: "Fiscalite", balance: 260000000 },
-    { year: 2015, code: "6001", name: "Dépenses Fonctionnement", category: "Expenses", nature: "LOLF_Titre_4", program: "Fonctionnement", balance: -185000000 },
+    years.forEach(function (year) {
+      categories.forEach(function (cat) {
+        programs.forEach(function (prog) {
+          baseAccounts.forEach(function (acc, idx) {
+            var seed = (year * 1000 + categories.indexOf(cat) * 100 + programs.indexOf(prog) * 20 + idx);
+            var baseBalance = (seed % 500000000) + 100000000;
+            var variance = ((seed * 13) % 50000000) - 25000000;
+            var balance = baseBalance + variance;
+            
+            rows.push({
+              year: year,
+              mission: "Santé",
+              posting_category: cat,
+              program: prog,
+              account_code: acc.code,
+              account_name: acc.name,
+              nature: "NAT_" + (seed % 3),
+              balance: balance
+            });
+          });
+        });
+      });
+    });
     
-    { year: 2016, code: "1001", name: "Trésor Public", category: "Assets", nature: "LOLF_Titre_1", program: "Tresorerie", balance: 50000000 },
-    { year: 2016, code: "2001", name: "Dettes Publiques", category: "Liabilities", nature: "LOLF_Titre_2", program: "Tresorerie", balance: -142000000 },
-    { year: 2016, code: "7001", name: "Recettes Fiscales", category: "Revenue", nature: "LOLF_Titre_3", program: "Fiscalite", balance: 268000000 },
-    { year: 2016, code: "6001", name: "Dépenses Fonctionnement", category: "Expenses", nature: "LOLF_Titre_4", program: "Fonctionnement", balance: -188000000 },
-    
-    { year: 2017, code: "1001", name: "Trésor Public", category: "Assets", nature: "LOLF_Titre_1", program: "Tresorerie", balance: 52000000 },
-    { year: 2017, code: "2001", name: "Dettes Publiques", category: "Liabilities", nature: "LOLF_Titre_2", program: "Tresorerie", balance: -145000000 },
-    { year: 2017, code: "7001", name: "Recettes Fiscales", category: "Revenue", nature: "LOLF_Titre_3", program: "Fiscalite", balance: 275000000 },
-    { year: 2017, code: "6001", name: "Dépenses Fonctionnement", category: "Expenses", nature: "LOLF_Titre_4", program: "Fonctionnement", balance: -190000000 },
-    
-    { year: 2018, code: "1001", name: "Trésor Public", category: "Assets", nature: "LOLF_Titre_1", program: "Tresorerie", balance: 55000000 },
-    { year: 2018, code: "2001", name: "Dettes Publiques", category: "Liabilities", nature: "LOLF_Titre_2", program: "Tresorerie", balance: -150000000 },
-    { year: 2018, code: "7001", name: "Recettes Fiscales", category: "Revenue", nature: "LOLF_Titre_3", program: "Fiscalite", balance: 280000000 },
-    { year: 2018, code: "6001", name: "Dépenses Fonctionnement", category: "Expenses", nature: "LOLF_Titre_4", program: "Fonctionnement", balance: -192000000 },
-    
-    { year: 2019, code: "1001", name: "Trésor Public", category: "Assets", nature: "LOLF_Titre_1", program: "Tresorerie", balance: 58000000 },
-    { year: 2019, code: "2001", name: "Dettes Publiques", category: "Liabilities", nature: "LOLF_Titre_2", program: "Tresorerie", balance: -155000000 },
-    { year: 2019, code: "7001", name: "Recettes Fiscales", category: "Revenue", nature: "LOLF_Titre_3", program: "Fiscalite", balance: 285000000 },
-    { year: 2019, code: "6001", name: "Dépenses Fonctionnement", category: "Expenses", nature: "LOLF_Titre_4", program: "Fonctionnement", balance: -195000000 },
-    
-    { year: 2020, code: "1001", name: "Trésor Public", category: "Assets", nature: "LOLF_Titre_1", program: "Tresorerie", balance: 60000000 },
-    { year: 2020, code: "2001", name: "Dettes Publiques", category: "Liabilities", nature: "LOLF_Titre_2", program: "Tresorerie", balance: -165000000 },
-    { year: 2020, code: "7001", name: "Recettes Fiscales", category: "Revenue", nature: "LOLF_Titre_3", program: "Fiscalite", balance: 270000000 },
-    { year: 2020, code: "6001", name: "Dépenses Fonctionnement", category: "Expenses", nature: "LOLF_Titre_4", program: "Fonctionnement", balance: -200000000 },
-    
-    { year: 2021, code: "1001", name: "Trésor Public", category: "Assets", nature: "LOLF_Titre_1", program: "Tresorerie", balance: 62000000 },
-    { year: 2021, code: "2001", name: "Dettes Publiques", category: "Liabilities", nature: "LOLF_Titre_2", program: "Tresorerie", balance: -170000000 },
-    { year: 2021, code: "7001", name: "Recettes Fiscales", category: "Revenue", nature: "LOLF_Titre_3", program: "Fiscalite", balance: 290000000 },
-    { year: 2021, code: "6001", name: "Dépenses Fonctionnement", category: "Expenses", nature: "LOLF_Titre_4", program: "Fonctionnement", balance: -202000000 },
-    
-    { year: 2022, code: "1001", name: "Trésor Public", category: "Assets", nature: "LOLF_Titre_1", program: "Tresorerie", balance: 65000000 },
-    { year: 2022, code: "2001", name: "Dettes Publiques", category: "Liabilities", nature: "LOLF_Titre_2", program: "Tresorerie", balance: -175000000 },
-    { year: 2022, code: "7001", name: "Recettes Fiscales", category: "Revenue", nature: "LOLF_Titre_3", program: "Fiscalite", balance: 295000000 },
-    { year: 2022, code: "6001", name: "Dépenses Fonctionnement", category: "Expenses", nature: "LOLF_Titre_4", program: "Fonctionnement", balance: -205000000 },
-    
-    { year: 2023, code: "1001", name: "Trésor Public", category: "Assets", nature: "LOLF_Titre_1", program: "Tresorerie", balance: 68000000 },
-    { year: 2023, code: "2001", name: "Dettes Publiques", category: "Liabilities", nature: "LOLF_Titre_2", program: "Tresorerie", balance: -180000000 },
-    { year: 2023, code: "7001", name: "Recettes Fiscales", category: "Revenue", nature: "LOLF_Titre_3", program: "Fiscalite", balance: 300000000 },
-    { year: 2023, code: "6001", name: "Dépenses Fonctionnement", category: "Expenses", nature: "LOLF_Titre_4", program: "Fonctionnement", balance: -208000000 },
-    
-    { year: 2024, code: "1001", name: "Trésor Public", category: "Assets", nature: "LOLF_Titre_1", program: "Tresorerie", balance: 70000000 },
-    { year: 2024, code: "2001", name: "Dettes Publiques", category: "Liabilities", nature: "LOLF_Titre_2", program: "Tresorerie", balance: -185000000 },
-    { year: 2024, code: "7001", name: "Recettes Fiscales", category: "Revenue", nature: "LOLF_Titre_3", program: "Fiscalite", balance: 305000000 },
-    { year: 2024, code: "6001", name: "Dépenses Fonctionnement", category: "Expenses", nature: "LOLF_Titre_4", program: "Fonctionnement", balance: -210000000 }
-  ];
+    return rows;
+  }
+  
+  var FALLBACK_BALANCES = buildLargeFallbackDataset();
 
   // ------------------------------------------------------------------
-  // 2. LIVE CALL TO MINISTÈRE API (fallback to sample if unavailable)
+  // 2. LIVE CALL TO MINISTÈRE API
   // ------------------------------------------------------------------
-  // Helper: fetch with timeout (10 seconds)
-  async function fetchWithTimeout(url, timeout = 10000) {
+  function delay(ms) {
+    return new Promise(function (resolve) { setTimeout(resolve, ms); });
+  }
+
+  async function fetchWithTimeout(url, timeout = 30000) {
     var controller = new AbortController();
     var timeoutId = setTimeout(function () { controller.abort(); }, timeout);
     try {
-      var res = await fetch(url, { signal: controller.signal });
+      var res = await fetch(url, {
+        signal: controller.signal,
+        headers: { 'Accept': 'application/json' }
+      });
       clearTimeout(timeoutId);
       return res;
     } catch (e) {
@@ -94,57 +101,67 @@
   }
 
   async function fetchBalances() {
-    // OpenDataSoft API v2.1 uses offset/limit pagination (no "next" links)
-    // Response format: { data: { total_count: N, results: [...] } }
-    // Field names from actual API: annee, compte, libellemission, nature_budgetaire, programme, balance_sortie
     var rows = [];
     var offset = 0;
     var limit = 100;
     var pageCount = 0;
-    var maxPages = 30; // Reasonable limit: 30 * 100 = 3000 rows max
+    var maxRecords = 10000;
 
-    while (pageCount < maxPages) {
+    console.log("[backend-expert] Fetching Health budget data (Santé 2015-2025)...");
+    
+    while (offset < maxRecords) {
       var url = BASE_URL +
-        "?limit=" + limit +
+        "?where=" + encodeURIComponent(WHERE_FILTER) +
+        "&limit=" + limit +
         "&offset=" + offset +
-        "&format=json";
+        "&lang=fr";
 
       try {
-        console.log("[backend-expert] Fetching offset=" + offset);
-        var res = await fetchWithTimeout(url, 10000);
+        console.log("[backend-expert] Fetching page " + (pageCount + 1) + " (offset=" + offset + ")");
+        var res = await fetchWithTimeout(url, 30000);
         if (!res.ok) throw new Error("HTTP " + res.status);
         var json = await res.json();
         
-        // Response is at top level: { total_count, results: [...] }
         var data = json && json.results;
         if (!Array.isArray(data)) throw new Error("Unexpected response (no results array)");
         
         rows = rows.concat(data);
         pageCount += 1;
-        console.log("[backend-expert] page " + pageCount + ": +" + data.length + " rows (total: " + rows.length + ")");
+        console.log("[backend-expert] Page " + pageCount + ": +" + data.length + " rows (total: " + rows.length + ")");
         
-        // Stop if we got fewer rows than the limit (we're at the last page)
         if (data.length < limit) break;
         offset += limit;
+        
+        await delay(200);
       } catch (e) {
-        console.warn("[backend-expert] API fetch failed:", e.message);
+        console.error("[backend-expert] API fetch failed at offset " + offset + ":", e.message);
         throw e;
       }
     }
 
     if (rows.length === 0) throw new Error("No data returned from API");
     
-    return rows.map(function (r) {
+    var allData = rows.map(function (r) {
       return {
         year: parseInt(r.annee, 10),
-        code: r.compte,
-        name: r.libellemission,
-        category: r.postes || "",
-        nature: r.nature_budgetaire || "",
+        mission: r.libellemission || "Santé",
+        posting_category: r.postes || "",
+        sub_posting_category: r.sous_postes || "",
         program: r.programme || "",
+        account_code: r.compte || "",
+        account_name: r.libelle_ministere || "",
+        nature: r.nature_budgetaire || "",
         balance: r.balance_sortie || 0
       };
     });
+    
+    var yearsPresent = {};
+    allData.forEach(function (row) {
+      yearsPresent[row.year] = (yearsPresent[row.year] || 0) + 1;
+    });
+    console.log("[backend-expert] Loaded " + allData.length + " real rows. Years: " + JSON.stringify(yearsPresent));
+    
+    return allData;
   }
 
   // ------------------------------------------------------------------
@@ -172,53 +189,51 @@
     
     try {
       balances = await fetchBalances();
-      source = "live (Ministère de l'Économie et des Finances, " + balances.length + " records)";
+      source = "live (Ministère de l'Économie, Budget Santé 2015-2025, " + balances.length + " records)";
       console.log("[backend-expert] ✅ API loaded successfully with " + balances.length + " records");
     } catch (e) {
-      console.warn("[backend-expert] ⚠️ API unavailable, falling back to sample:", e.message);
+      console.warn("[backend-expert] ⚠️ API unavailable, using fallback:", e.message);
       balances = FALLBACK_BALANCES;
     }
 
-    // Create balance table: 7 columns
+    // Create balance table
     db.run(
       "CREATE TABLE balance (" +
-      "year INTEGER, account_code TEXT, account_name TEXT, posting_category TEXT, " +
-      "nature_budgetaire TEXT, program TEXT, balance REAL" +
+      "year INTEGER, mission TEXT, posting_category TEXT, sub_posting_category TEXT, program TEXT, " +
+      "account_code TEXT, account_name TEXT, nature_budgetaire TEXT, balance REAL" +
       ")"
     );
 
     var stmt = db.prepare(
-      "INSERT INTO balance (year, account_code, account_name, posting_category, " +
-      "nature_budgetaire, program, balance) VALUES (?,?,?,?,?,?,?)"
+      "INSERT INTO balance (year, mission, posting_category, sub_posting_category, program, " +
+      "account_code, account_name, nature_budgetaire, balance) VALUES (?,?,?,?,?,?,?,?,?)"
     );
 
     balances.forEach(function (b) {
       try {
-        stmt.run([b.year, b.code, b.name, b.category, b.nature, b.program, b.balance]);
+        stmt.run([b.year, b.mission, b.posting_category, b.sub_posting_category, b.program, b.account_code, b.account_name, b.nature, b.balance]);
       } catch (e) {
-        console.error("[backend-expert] Insert error:", e.message, "Row:", b);
+        console.error("[backend-expert] Insert error:", e.message);
       }
     });
     stmt.free();
 
-    // Create account_ref table: 3 columns (deduplicated from balance)
+    // Create posting_ref table (deduplicated posting categories)
     db.run(
-      "CREATE TABLE account_ref (" +
-      "account_code TEXT, account_name TEXT, posting_category TEXT" +
+      "CREATE TABLE posting_ref (" +
+      "posting_category TEXT PRIMARY KEY, description TEXT" +
       ")"
     );
 
-    // Deduplicate and insert into account_ref
     var seen = {};
     var stmtRef = db.prepare(
-      "INSERT INTO account_ref (account_code, account_name, posting_category) VALUES (?,?,?)"
+      "INSERT INTO posting_ref (posting_category, description) VALUES (?,?)"
     );
 
     balances.forEach(function (b) {
-      var key = b.code + "|" + b.category;
-      if (!seen[key]) {
-        seen[key] = true;
-        stmtRef.run([b.code, b.name, b.category]);
+      if (b.posting_category && !seen[b.posting_category]) {
+        seen[b.posting_category] = true;
+        stmtRef.run([b.posting_category, b.posting_category]);
       }
     });
     stmtRef.free();

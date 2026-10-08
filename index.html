@@ -4,6 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>QueryReal</title>
+  
+  <!-- Firebase SDK v11 (plus récent) -->
+  <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-app-compat.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-auth-compat.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore-compat.min.js"></script>
+  
   <style>
     :root {
       --bg:       #080c10;
@@ -34,6 +40,115 @@
     .page { display: none !important; }
     .page.active { display: flex !important; }
 
+    /* ── AUTH PAGE ── */
+    #page-auth {
+      min-height: 100vh;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 24px;
+    }
+
+    .auth-container {
+      max-width: 380px;
+      width: 100%;
+    }
+
+    .auth-header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+
+    .auth-header h1 {
+      font-family: var(--mono);
+      font-size: 3.2rem;
+      font-weight: 700;
+      letter-spacing: -2px;
+      margin-bottom: 8px;
+    }
+
+    .auth-header h1 .query { color: #ffffff; }
+    .auth-header h1 .real  { color: var(--c-intermediate); }
+
+    .auth-header p {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .auth-tabs {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 32px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .auth-tab {
+      flex: 1;
+      padding: 12px;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .auth-tab.active {
+      border-bottom-color: #58a6ff;
+      color: #58a6ff;
+    }
+
+    .auth-form {
+      display: none;
+    }
+
+    .auth-form.active {
+      display: block;
+    }
+
+    .auth-form input {
+      width: 100%;
+      padding: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: var(--sans);
+      margin-bottom: 12px;
+      font-size: 0.9rem;
+    }
+
+    .auth-form input::placeholder {
+      color: var(--muted);
+    }
+
+    .auth-submit {
+      width: 100%;
+      padding: 12px;
+      background: #58a6ff;
+      color: #080c10;
+      border: none;
+      border-radius: 8px;
+      font-family: var(--mono);
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      margin-bottom: 20px;
+    }
+
+    .auth-submit:hover {
+      opacity: 0.85;
+    }
+
+    #auth-message {
+      text-align: center;
+      font-size: 0.85rem;
+      min-height: 20px;
+      margin-top: 16px;
+    }
+
     /* ── HOME PAGE ── */
     #page-home {
       min-height: 100vh;
@@ -42,6 +157,26 @@
       justify-content: center;
       padding: 60px 24px;
       text-align: center;
+    }
+
+    .logout-btn {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.8rem;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: var(--mono);
+      transition: color 0.15s, border-color 0.15s;
+    }
+
+    .logout-btn:hover {
+      color: var(--text);
+      border-color: var(--muted);
     }
 
     @media (max-width: 600px) {
@@ -163,6 +298,29 @@
     }
     .back-btn:hover { color: var(--text); border-color: var(--muted); }
 
+    .levels-header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      margin-bottom: 40px;
+    }
+
+    .levels-user-info {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    #current-user-email {
+      color: var(--muted);
+      font-size: 0.8rem;
+      font-family: var(--mono);
+    }
+
     .levels-list {
       display: flex;
       flex-direction: column;
@@ -226,11 +384,8 @@
       max-width: 860px;
       margin: 0 auto;
       width: 100%;
-      position: relative; /* anchors the mobile edge tabs */
+      position: relative;
     }
-    /* More horizontal room once the side panels sit next to the
-       editor instead of stacking above it — grows with the viewport
-       instead of stopping at a fixed width. */
     @media (min-width: 1000px) {
       #page-game { max-width: min(1800px, 96vw); }
     }
@@ -278,7 +433,6 @@
       max-width: 600px;
     }
 
-    /* ── GAME LAYOUT: database panel / editor / SQL tips panel ── */
     .game-layout {
       position: relative;
     }
@@ -287,8 +441,6 @@
       min-width: 0;
     }
 
-    /* Side panels — on narrow screens these are off-canvas drawers
-       docked to the right edge, slid fully out of view. */
     .side-panel {
       position: fixed;
       top: 0;
@@ -326,7 +478,6 @@
       line-height: 1;
     }
 
-    /* Mobile edge tabs: tap to slide the matching panel in from the right */
     .edge-tabs {
       position: fixed;
       top: 50%;
@@ -360,11 +511,6 @@
     }
     .drawer-backdrop.open { opacity: 1; pointer-events: auto; }
 
-    /* Enough room: drop the drawers, show all three columns side by side.
-       Side panels widen with the viewport (up to a comfortable cap)
-       instead of staying pinned at a fixed width, and the whole row
-       centers itself so extra space on very large screens doesn't
-       just pile up on one side. */
     @media (min-width: 1000px) {
       .game-layout {
         display: flex;
@@ -540,8 +686,49 @@
 </head>
 <body>
 
+<!-- AUTH PAGE (LOGIN/SIGNUP) -->
+<div id="page-auth" class="page active">
+  <div class="auth-container">
+    
+    <!-- Logo/Title -->
+    <div class="auth-header">
+      <h1><span class="query">Query</span><span class="real">Real</span></h1>
+      <p>Apprenez SQL avec des données réelles</p>
+    </div>
+
+    <!-- Tabs -->
+    <div class="auth-tabs">
+      <button id="auth-tab-login" class="auth-tab active" onclick="switchAuthMode('login')">
+        Connexion
+      </button>
+      <button id="auth-tab-signup" class="auth-tab" onclick="switchAuthMode('signup')">
+        Créer un compte
+      </button>
+    </div>
+
+    <!-- LOGIN FORM -->
+    <form id="auth-login-form" class="auth-form active" onsubmit="event.preventDefault(); logIn(document.getElementById('login-email').value, document.getElementById('login-password').value);">
+      <input id="login-email" type="email" placeholder="Email" required>
+      <input id="login-password" type="password" placeholder="Mot de passe" required>
+      <button type="submit" class="auth-submit">Se connecter</button>
+    </form>
+
+    <!-- SIGNUP FORM -->
+    <form id="auth-signup-form" class="auth-form" onsubmit="event.preventDefault(); signUp(document.getElementById('signup-email').value, document.getElementById('signup-password').value, document.getElementById('signup-password-confirm').value);">
+      <input id="signup-email" type="email" placeholder="Email" required>
+      <input id="signup-password" type="password" placeholder="Mot de passe (min. 6 caractères)" required>
+      <input id="signup-password-confirm" type="password" placeholder="Confirmer le mot de passe" required>
+      <button type="submit" class="auth-submit">Créer un compte</button>
+    </form>
+
+    <!-- Messages -->
+    <div id="auth-message"></div>
+  </div>
+</div>
+
 <!-- HOME PAGE -->
-<div id="page-home" class="page active">
+<div id="page-home" class="page">
+  <button class="logout-btn" onclick="logOut()">Déconnexion</button>
   <div class="hero" style="display:flex;flex-direction:column;align-items:center;">
     <div class="hero-badge">Learn SQL by playing</div>
     <h1><span class="query">Query</span><span class="real">Real</span></h1>
@@ -572,6 +759,10 @@
 
 <!-- LEVELS PAGE -->
 <div id="page-levels" class="page">
+  <div class="levels-user-info">
+    <span id="current-user-email"></span>
+    <button class="logout-btn" onclick="logOut()" style="position:static;top:auto;right:auto;">Déconnexion</button>
+  </div>
   <button class="back-btn" id="btn-back-home">← Back</button>
   <h2>What's your level?</h2>
   <p class="subtitle">Complete all 5 challenges in a level to unlock the next one.</p>
@@ -678,22 +869,11 @@
 <script src="backend-beginner.js"></script>
 <script src="backend-intermediate.js"></script>
 <script src="backend-advanced.js"></script>
-<script src="backend-expert.js"></script>
+<script src="firebase-config.js"></script>
+<script src="firebase-storage.js"></script>
 <script>
 /* ============================================================
    LEVEL DEFINITIONS
-   ------------------------------------------------------------
-   Each level has:
-   - database     : database description for the educational panel
-   - concepts     : SQL concepts introduced, with an explanation + example
-   - backendLoader: name of the global function that loads the database
-                    (null if the level doesn't have a backend yet)
-   - challenges   : list of 5 challenges { title, description, starter,
-                    reference, hint }
-                    `reference` is the reference query (hidden from the
-                    player), executed on the fly against the SAME
-                    database as the player's, to generate the expected
-                    result and compare it.
    ============================================================ */
 var levelsOrder = ['beginner', 'intermediate', 'advanced', 'expert', 'mega'];
 
@@ -853,7 +1033,7 @@ var levels = {
       },
       {
         title: 'Challenge 5 — LEFT JOIN',
-        description: 'For every station, show its name and how many measurements exist for it — including stations with zero measurements. Sort from fewest to most.<br><br><em>Reminder: a plain JOIN might return the exact same result here — but only because every station in the current dataset happens to have at least one measurement. That\'s incidental, not something your query guarantees. This challenge specifically requires <code>LEFT JOIN</code>.</em>',
+        description: 'For every station, show its name and how many measurements exist for it — including stations with zero measurements. Sort from fewest to most.',
         starter: 'SELECT s.station_name, COUNT(m.station_code) AS measurement_count\nFROM station s\nLEFT JOIN measurement m ON s.station_code = m.station_code\nGROUP BY s.station_name\nORDER BY measurement_count ASC;',
         reference: 'SELECT s.station_name, COUNT(m.station_code) FROM station s LEFT JOIN measurement m ON s.station_code = m.station_code GROUP BY s.station_name ORDER BY COUNT(m.station_code) ASC;',
         orderMatters: true,
@@ -894,7 +1074,7 @@ var levels = {
       },
       {
         title: 'Challenge 10 — Join your own table back',
-        description: 'Combine <code>river_quality_summary</code> with <code>station</code> (JOIN on river) to list, for each river in the summary, one matching station name alongside its average Nitrates value. Sort from best to worst water quality.',
+        description: 'Combine <code>river_quality_summary</code> with <code>station</code> (JOIN on river) to list, for each river in the summary, one matching station name alongside its average Nitrates value. Sort by best to worst water quality.',
         starter: 'SELECT rqs.river, s.station_name, rqs.avg_nitrates\nFROM river_quality_summary rqs\nJOIN station s ON rqs.river = s.river\nORDER BY rqs.avg_nitrates ASC;',
         reference: 'SELECT rqs.river, s.station_name, rqs.avg_nitrates FROM river_quality_summary rqs JOIN station s ON rqs.river = s.river ORDER BY rqs.avg_nitrates ASC;',
         orderMatters: true,
@@ -913,7 +1093,9 @@ var levels = {
       link: 'https://data.enseignementsup-recherche.gouv.fr/explore/dataset/fr-esr-principaux-etablissements-enseignement-superieur/',
       tables: ['university', 'enrollment'],
       description: "Two separate calls to the official higher education directory: each public university's identity (reference table), and its official 2024 student enrollment (a second table — a 1-to-1 relationship with real data from the Ministère). 58 public universities in France with authentic 2024 enrollment figures (65 designated as 'Université', but only 58 have inscrits_2024 data).",
-      schema: 'university(uai, name, type, department_code, city)\nenrollment(uai, student_count)'
+      schema:
+        'university(uai, name, type, department_code, city)\n' +
+        'enrollment(uai, student_count)'
     },
     concepts: [
       { term: 'Subquery', explanation: 'A SELECT nested inside another query, usually in WHERE — it runs first and gives a value (or list of values) to compare against.', example: 'WHERE student_count > (SELECT AVG(student_count) FROM enrollment)' },
@@ -922,233 +1104,163 @@ var levels = {
       { term: 'PARTITION BY', explanation: "Used inside OVER(...) to restart a window function's numbering for each group — e.g. rank universities within each department separately instead of across all of France at once.", example: 'RANK() OVER (PARTITION BY department_code ORDER BY student_count DESC)' }
     ],
     challenges: [
-      { title: 'Challenge 1 — Warm-up join', description: 'Show the name, type, and student count for every public university, joining the two tables on their UAI code.', starter: 'SELECT u.name, u.type, e.student_count\nFROM university u\nJOIN enrollment e ON u.uai = e.uai;', reference: 'SELECT u.name, u.type, e.student_count FROM university u JOIN enrollment e ON u.uai = e.uai;', hint: 'Same JOIN pattern as the Intermediate level — just with university tables now.' },
-      { title: 'Challenge 2 — Your first subquery', description: 'Show the name and student count of every university with more students than the national average across all universities.', starter: 'SELECT u.name, e.student_count\nFROM university u\nJOIN enrollment e ON u.uai = e.uai\nWHERE e.student_count > (SELECT AVG(student_count) FROM enrollment);', reference: 'SELECT u.name, e.student_count FROM university u JOIN enrollment e ON u.uai = e.uai WHERE e.student_count > (SELECT AVG(student_count) FROM enrollment);', hint: 'A subquery in parentheses inside WHERE runs first and gives you a single value to compare against.' },
-      { title: 'Challenge 3 — Subquery for a maximum', description: 'Show the name and student count of the university with the most students, using a subquery instead of ORDER BY + LIMIT.', starter: 'SELECT u.name, e.student_count\nFROM university u\nJOIN enrollment e ON u.uai = e.uai\nWHERE e.student_count = (SELECT MAX(student_count) FROM enrollment);', reference: 'SELECT u.name, e.student_count FROM university u JOIN enrollment e ON u.uai = e.uai WHERE e.student_count = (SELECT MAX(student_count) FROM enrollment);', hint: 'WHERE column = (SELECT MAX(...) ...) finds the row(s) matching the overall maximum.' },
-      { title: 'Challenge 4 — Your first CTE', description: 'Using a CTE (WITH), compute the average student count per department, then show only the departments where that average is above 8000.', starter: 'WITH dept_avg AS (\n  SELECT u.department_code, AVG(e.student_count) AS avg_students\n  FROM university u\n  JOIN enrollment e ON u.uai = e.uai\n  GROUP BY u.department_code\n)\nSELECT department_code, avg_students\nFROM dept_avg\nWHERE avg_students > 8000\nORDER BY avg_students DESC;', reference: 'WITH dept_avg AS (SELECT u.department_code, AVG(e.student_count) AS avg_students FROM university u JOIN enrollment e ON u.uai = e.uai GROUP BY u.department_code) SELECT department_code, avg_students FROM dept_avg WHERE avg_students > 8000 ORDER BY avg_students DESC;', orderMatters: true, hint: 'WITH name AS (...) defines a temporary named result you can then SELECT FROM, just like a table.' },
-      { title: 'Challenge 5 — Compare to the group average', description: "Using the same kind of CTE, show every university that has more students than the average of its own department (not the national average).", starter: 'WITH dept_avg AS (\n  SELECT u.department_code, AVG(e.student_count) AS avg_students\n  FROM university u\n  JOIN enrollment e ON u.uai = e.uai\n  GROUP BY u.department_code\n)\nSELECT u.name, e.student_count, u.department_code\nFROM university u\nJOIN enrollment e ON u.uai = e.uai\nJOIN dept_avg d ON u.department_code = d.department_code\nWHERE e.student_count > d.avg_students;', reference: 'WITH dept_avg AS (SELECT u.department_code, AVG(e.student_count) AS avg_students FROM university u JOIN enrollment e ON u.uai = e.uai GROUP BY u.department_code) SELECT u.name, e.student_count, u.department_code FROM university u JOIN enrollment e ON u.uai = e.uai JOIN dept_avg d ON u.department_code = d.department_code WHERE e.student_count > d.avg_students;', hint: "Join the CTE back to university/enrollment on department_code, then compare each university's own size to its department's average." },
-      { title: 'Challenge 6 — Your first window function', description: 'Number every university from largest to smallest by student count, using ROW_NUMBER().', starter: 'SELECT u.name, e.student_count,\n  ROW_NUMBER() OVER (ORDER BY e.student_count DESC) AS rnk\nFROM university u\nJOIN enrollment e ON u.uai = e.uai;', reference: 'SELECT u.name, e.student_count, ROW_NUMBER() OVER (ORDER BY e.student_count DESC) FROM university u JOIN enrollment e ON u.uai = e.uai;', orderMatters: true, hint: 'ROW_NUMBER() OVER (ORDER BY ...) assigns 1, 2, 3... to rows in that order — no GROUP BY involved.' },
-      { title: 'Challenge 7 — RANK with PARTITION BY', description: 'For each department, rank its universities from largest to smallest using RANK(), restarting the ranking at 1 for every department.', starter: 'SELECT u.department_code, u.name, e.student_count,\n  RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) AS dept_rank\nFROM university u\nJOIN enrollment e ON u.uai = e.uai;', reference: 'SELECT u.department_code, u.name, e.student_count, RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) FROM university u JOIN enrollment e ON u.uai = e.uai;', orderMatters: true, hint: 'PARTITION BY department_code restarts the ranking for each department, instead of ranking across all of France at once.' },
-      { title: 'Challenge 8 — Filter on a window function via a CTE', description: "Show only the single largest university in each department (rank 1), using the same ranking as challenge 7. You can't filter directly on a window function in the same SELECT — wrap it in a CTE first.", starter: 'WITH ranked AS (\n  SELECT u.department_code, u.name, e.student_count,\n    RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) AS dept_rank\n  FROM university u\n  JOIN enrollment e ON u.uai = e.uai\n)\nSELECT department_code, name, student_count\nFROM ranked\nWHERE dept_rank = 1\nORDER BY department_code;', reference: 'WITH ranked AS (SELECT u.department_code, u.name, e.student_count, RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) AS dept_rank FROM university u JOIN enrollment e ON u.uai = e.uai) SELECT department_code, name, student_count FROM ranked WHERE dept_rank = 1 ORDER BY department_code;', orderMatters: true, hint: "A window function's result isn't available to WHERE in the same query — compute it inside a CTE, then filter the CTE." },
-      { title: 'Challenge 9 — Rank nationally', description: 'Using a CTE with RANK(), show the 5 largest universities nationally (rank 1 to 5, ignoring departments this time), with their department.', starter: 'WITH ranked AS (\n  SELECT u.department_code, u.name, e.student_count,\n    RANK() OVER (ORDER BY e.student_count DESC) AS overall_rank\n  FROM university u\n  JOIN enrollment e ON u.uai = e.uai\n)\nSELECT department_code, name, student_count\nFROM ranked\nWHERE overall_rank <= 5\nORDER BY overall_rank;', reference: 'WITH ranked AS (SELECT u.department_code, u.name, e.student_count, RANK() OVER (ORDER BY e.student_count DESC) AS overall_rank FROM university u JOIN enrollment e ON u.uai = e.uai) SELECT department_code, name, student_count FROM ranked WHERE overall_rank <= 5 ORDER BY overall_rank;', orderMatters: true, hint: 'Same pattern as challenge 8, but without PARTITION BY this time — and WHERE overall_rank <= 5 instead of = 1.' },
-      { title: 'Challenge 10 — Put it all together', description: "Show the largest university in each department (as in challenge 8), but only keep departments where that top university has more than 20000 students. Sort by student count, largest first.", starter: 'WITH ranked AS (\n  SELECT u.department_code, u.name, e.student_count,\n    RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) AS dept_rank\n  FROM university u\n  JOIN enrollment e ON u.uai = e.uai\n)\nSELECT department_code, name, student_count\nFROM ranked\nWHERE dept_rank = 1 AND student_count > 20000\nORDER BY student_count DESC;', reference: 'WITH ranked AS (SELECT u.department_code, u.name, e.student_count, RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) AS dept_rank FROM university u JOIN enrollment e ON u.uai = e.uai) SELECT department_code, name, student_count FROM ranked WHERE dept_rank = 1 AND student_count > 20000 ORDER BY student_count DESC;', orderMatters: true, hint: 'Same CTE + RANK pattern as challenge 8, with an extra condition in the final WHERE and a new ORDER BY.' }
+      {
+        title: 'Challenge 1 — Warm-up join',
+        description: 'Show the name, type, and student count for every public university, joining the two tables on their UAI code.',
+        starter: 'SELECT u.name, u.type, e.student_count\nFROM university u\nJOIN enrollment e ON u.uai = e.uai;',
+        reference: 'SELECT u.name, u.type, e.student_count FROM university u JOIN enrollment e ON u.uai = e.uai;',
+        hint: 'Same JOIN pattern as the Intermediate level — just with university tables now.'
+      },
+      {
+        title: 'Challenge 2 — Your first subquery',
+        description: 'Show the name and student count of every university with more students than the national average across all universities.',
+        starter: 'SELECT u.name, e.student_count\nFROM university u\nJOIN enrollment e ON u.uai = e.uai\nWHERE e.student_count > (SELECT AVG(student_count) FROM enrollment);',
+        reference: 'SELECT u.name, e.student_count FROM university u JOIN enrollment e ON u.uai = e.uai WHERE e.student_count > (SELECT AVG(student_count) FROM enrollment);',
+        hint: 'A subquery in parentheses inside WHERE runs first and gives you a single value to compare against.'
+      },
+      {
+        title: 'Challenge 3 — Subquery for a maximum',
+        description: 'Show the name and student count of the university with the most students, using a subquery instead of ORDER BY + LIMIT.',
+        starter: 'SELECT u.name, e.student_count\nFROM university u\nJOIN enrollment e ON u.uai = e.uai\nWHERE e.student_count = (SELECT MAX(student_count) FROM enrollment);',
+        reference: 'SELECT u.name, e.student_count FROM university u JOIN enrollment e ON u.uai = e.uai WHERE e.student_count = (SELECT MAX(student_count) FROM enrollment);',
+        hint: 'WHERE column = (SELECT MAX(...) ...) finds the row(s) matching the overall maximum.'
+      },
+      {
+        title: 'Challenge 4 — Your first CTE',
+        description: 'Using a CTE (WITH), compute the average student count per department, then show only the departments where that average is above 8000.',
+        starter: 'WITH dept_avg AS (\n  SELECT u.department_code, AVG(e.student_count) AS avg_students\n  FROM university u\n  JOIN enrollment e ON u.uai = e.uai\n  GROUP BY u.department_code\n)\nSELECT department_code, avg_students\nFROM dept_avg\nWHERE avg_students > 8000\nORDER BY avg_students DESC;',
+        reference: 'WITH dept_avg AS (SELECT u.department_code, AVG(e.student_count) AS avg_students FROM university u JOIN enrollment e ON u.uai = e.uai GROUP BY u.department_code) SELECT department_code, avg_students FROM dept_avg WHERE avg_students > 8000 ORDER BY avg_students DESC;',
+        orderMatters: true,
+        hint: 'WITH name AS (...) defines a temporary named result you can then SELECT FROM, just like a table.'
+      },
+      {
+        title: 'Challenge 5 — Compare to the group average',
+        description: "Using the same kind of CTE, show every university that has more students than the average of its own department (not the national average).",
+        starter: 'WITH dept_avg AS (\n  SELECT u.department_code, AVG(e.student_count) AS avg_students\n  FROM university u\n  JOIN enrollment e ON u.uai = e.uai\n  GROUP BY u.department_code\n)\nSELECT u.name, e.student_count, u.department_code\nFROM university u\nJOIN enrollment e ON u.uai = e.uai\nJOIN dept_avg d ON u.department_code = d.department_code\nWHERE e.student_count > d.avg_students;',
+        reference: 'WITH dept_avg AS (SELECT u.department_code, AVG(e.student_count) AS avg_students FROM university u JOIN enrollment e ON u.uai = e.uai GROUP BY u.department_code) SELECT u.name, e.student_count, u.department_code FROM university u JOIN enrollment e ON u.uai = e.uai JOIN dept_avg d ON u.department_code = d.department_code WHERE e.student_count > d.avg_students;',
+        hint: "Join the CTE back to university/enrollment on department_code, then compare each university's own size to its department's average."
+      },
+      {
+        title: 'Challenge 6 — Your first window function',
+        description: 'Number every university from largest to smallest by student count, using ROW_NUMBER().',
+        starter: 'SELECT u.name, e.student_count,\n  ROW_NUMBER() OVER (ORDER BY e.student_count DESC) AS rnk\nFROM university u\nJOIN enrollment e ON u.uai = e.uai;',
+        reference: 'SELECT u.name, e.student_count, ROW_NUMBER() OVER (ORDER BY e.student_count DESC) FROM university u JOIN enrollment e ON u.uai = e.uai;',
+        orderMatters: true,
+        hint: 'ROW_NUMBER() OVER (ORDER BY ...) assigns 1, 2, 3... to rows in that order — no GROUP BY involved.'
+      },
+      {
+        title: 'Challenge 7 — RANK with PARTITION BY',
+        description: 'For each department, rank its universities from largest to smallest using RANK(), restarting the ranking at 1 for every department.',
+        starter: 'SELECT u.department_code, u.name, e.student_count,\n  RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) AS dept_rank\nFROM university u\nJOIN enrollment e ON u.uai = e.uai;',
+        reference: 'SELECT u.department_code, u.name, e.student_count, RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) FROM university u JOIN enrollment e ON u.uai = e.uai;',
+        orderMatters: true,
+        hint: 'PARTITION BY department_code restarts the ranking for each department, instead of ranking across all of France at once.'
+      },
+      {
+        title: 'Challenge 8 — Filter on a window function via a CTE',
+        description: "Show only the single largest university in each department (rank 1), using the same ranking as challenge 7. You can't filter directly on a window function in the same SELECT — wrap it in a CTE first.",
+        starter: 'WITH ranked AS (\n  SELECT u.department_code, u.name, e.student_count,\n    RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) AS dept_rank\n  FROM university u\n  JOIN enrollment e ON u.uai = e.uai\n)\nSELECT department_code, name, student_count\nFROM ranked\nWHERE dept_rank = 1\nORDER BY department_code;',
+        reference: 'WITH ranked AS (SELECT u.department_code, u.name, e.student_count, RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) AS dept_rank FROM university u JOIN enrollment e ON u.uai = e.uai) SELECT department_code, name, student_count FROM ranked WHERE dept_rank = 1 ORDER BY department_code;',
+        orderMatters: true,
+        hint: "A window function's result isn't available to WHERE in the same query — compute it inside a CTE, then filter the CTE."
+      },
+      {
+        title: 'Challenge 9 — Rank nationally',
+        description: 'Using a CTE with RANK(), show the 5 largest universities nationally (rank 1 to 5, ignoring departments this time), with their department.',
+        starter: 'WITH ranked AS (\n  SELECT u.department_code, u.name, e.student_count,\n    RANK() OVER (ORDER BY e.student_count DESC) AS overall_rank\n  FROM university u\n  JOIN enrollment e ON u.uai = e.uai\n)\nSELECT department_code, name, student_count\nFROM ranked\nWHERE overall_rank <= 5\nORDER BY overall_rank;',
+        reference: 'WITH ranked AS (SELECT u.department_code, u.name, e.student_count, RANK() OVER (ORDER BY e.student_count DESC) AS overall_rank FROM university u JOIN enrollment e ON u.uai = e.uai) SELECT department_code, name, student_count FROM ranked WHERE overall_rank <= 5 ORDER BY overall_rank;',
+        orderMatters: true,
+        hint: 'Same pattern as challenge 8, but without PARTITION BY this time — and WHERE overall_rank <= 5 instead of = 1.'
+      },
+      {
+        title: 'Challenge 10 — Put it all together',
+        description: "Show the largest university in each department (as in challenge 8), but only keep departments where that top university has more than 20000 students. Sort by student count, largest first.",
+        starter: 'WITH ranked AS (\n  SELECT u.department_code, u.name, e.student_count,\n    RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) AS dept_rank\n  FROM university u\n  JOIN enrollment e ON u.uai = e.uai\n)\nSELECT department_code, name, student_count\nFROM ranked\nWHERE dept_rank = 1 AND student_count > 20000\nORDER BY student_count DESC;',
+        reference: 'WITH ranked AS (SELECT u.department_code, u.name, e.student_count, RANK() OVER (PARTITION BY u.department_code ORDER BY e.student_count DESC) AS dept_rank FROM university u JOIN enrollment e ON u.uai = e.uai) SELECT department_code, name, student_count FROM ranked WHERE dept_rank = 1 AND student_count > 20000 ORDER BY student_count DESC;',
+        orderMatters: true,
+        hint: 'Same CTE + RANK pattern as challenge 8, with an extra condition in the final WHERE and a new ORDER BY.'
+      }
     ]
   },
 
   expert: {
     label: 'Expert', color: '#f0883e',
-    backendLoader: 'loadExpertDB',
+    backendLoader: null,
     database: {
-      name: 'French Health Budget (Mission "Santé" 2015–2025)',
-      source: "Ministère de l'Économie et des Finances — <code>data.economie.gouv.fr</code>",
-      link: 'https://data.economie.gouv.fr/explore/dataset/balances_des_comptes_etat/',
-      tables: ['balance', 'posting_ref'],
-      description: 'Real accounting data from the French state budget for the Health mission (Santé) over 11 years. Each record captures expenses by posting category, program, and account. Demonstrates time-series analysis with LAG/LEAD for year-over-year tracking, stacked CTEs for multi-level aggregations, and CASE WHEN logic for selective aggregation across budget lines.',
-      schema: 'balance(year, mission, posting_category, program, account_code, account_name, nature_budgetaire, balance)\nposting_ref(posting_category, description)'
+      name: '(coming soon) Public health data over time',
+      source: 'data.gouv.fr / Santé publique France',
+      description: 'This level will introduce time-series analysis, stacked CTEs, and functions like LAG/LEAD to compute growth rates.',
+      schema: '(schema not defined yet)'
     },
     concepts: [
-      { term: 'LAG() / LEAD()', explanation: 'Window functions that fetch a value from the previous or next row in sorted order — essential for year-over-year comparisons and trend detection.', example: 'LAG(total_budget) OVER (ORDER BY year)' },
-      { term: 'Stacked CTEs', explanation: 'Multiple WITH clauses in sequence, each building on previous ones — makes complex multi-step budget analyses readable and maintainable.', example: 'WITH a AS (...), b AS (SELECT ... FROM a), c AS (SELECT ... FROM b) SELECT * FROM c;' },
-      { term: 'CASE WHEN (in aggregates)', explanation: 'Conditional logic inside SUM/COUNT to selectively aggregate rows by posting category or program.', example: 'SUM(CASE WHEN posting_category=\'Charges de fonctionnement\' THEN balance ELSE 0 END)' },
-      { term: 'PARTITION BY (in window functions)', explanation: 'Restart numbering or calculations for each group (program, category, etc.) instead of across all rows.', example: 'ROW_NUMBER() OVER (PARTITION BY program ORDER BY balance DESC)' },
-      { term: 'ABS() and percentage math', explanation: 'Absolute value to measure volatility; percentage change = (current − previous) / previous × 100.', example: 'ABS(balance - prev_balance), ROUND(pct_change, 2)' }
+      { term: 'Stacked CTEs', explanation: 'Several successive WITH clauses, each building on the previous one.', example: 'WITH a AS (...), b AS (SELECT ... FROM a) SELECT * FROM b;' },
+      { term: 'LAG() / LEAD()', explanation: 'Fetches the value from the previous or next row, useful for comparing a period to the one before it.', example: 'LAG(value) OVER (ORDER BY year)' }
     ],
     challenges: [
       {
-        title: 'Challenge 1 — Total health budget by year',
-        description: 'Show the total budget (sum of all balances) for the Health mission each year, sorted from oldest to newest.',
-        starter: 'SELECT year, SUM(balance) AS total_budget\nFROM balance\nGROUP BY year\nORDER BY year;',
-        reference: 'SELECT year, SUM(balance) FROM balance GROUP BY year ORDER BY year;',
-        orderMatters: true,
-        hint: 'GROUP BY year to aggregate, then ORDER BY year to sort chronologically.'
-      },
-      {
-        title: 'Challenge 2 — Year-over-year budget change with LAG()',
-        description: 'For each year, show the total budget, the previous year\'s budget using LAG(), and the year-over-year change in absolute euros.',
-        starter: 'SELECT \n  year,\n  SUM(balance) AS total_budget,\n  LAG(SUM(balance)) OVER (ORDER BY year) AS previous_year_budget,\n  SUM(balance) - LAG(SUM(balance)) OVER (ORDER BY year) AS yoy_change\nFROM balance\nGROUP BY year\nORDER BY year;',
-        reference: 'SELECT year, SUM(balance), LAG(SUM(balance)) OVER (ORDER BY year), SUM(balance) - LAG(SUM(balance)) OVER (ORDER BY year) FROM balance GROUP BY year ORDER BY year;',
-        orderMatters: true,
-        hint: 'LAG() OVER (ORDER BY year) fetches the previous row\'s value. The first year (2020) will have NULL for previous_year_budget.'
-      },
-      {
-        title: 'Challenge 3 — Percentage change year-over-year',
-        description: 'For each year (2016 onwards), show the year, total budget, and percentage change from the previous year. Use ROUND(..., 2) for 2 decimal places.',
-        starter: 'SELECT \n  year,\n  SUM(balance) AS total_budget,\n  ROUND(100.0 * (SUM(balance) - LAG(SUM(balance)) OVER (ORDER BY year)) \n        / LAG(SUM(balance)) OVER (ORDER BY year), 2) AS pct_change\nFROM balance\nGROUP BY year\nHAVING year > 2015\nORDER BY year;',
-        reference: 'SELECT year, SUM(balance), ROUND(100.0 * (SUM(balance) - LAG(SUM(balance)) OVER (ORDER BY year)) / LAG(SUM(balance)) OVER (ORDER BY year), 2) FROM balance GROUP BY year HAVING year > 2015 ORDER BY year;',
-        orderMatters: true,
-        hint: 'Percentage change = (current − previous) / previous × 100. HAVING filters after aggregation to exclude 2015.'
-      },
-      {
-        title: 'Challenge 4 — CTE: Budget by posting category per year',
-        description: 'Using a WITH clause, create a CTE called `budget_by_category` that groups balances by year and posting_category. Then SELECT to show year, posting_category, and total amount. Sort by year, then posting_category.',
-        starter: 'WITH budget_by_category AS (\n  SELECT \n    year,\n    posting_category,\n    SUM(balance) AS total_amount\n  FROM balance\n  WHERE posting_category IS NOT NULL AND posting_category != \'\'\n  GROUP BY year, posting_category\n)\nSELECT year, posting_category, total_amount\nFROM budget_by_category\nORDER BY year, posting_category;',
-        reference: 'WITH budget_by_category AS (SELECT year, posting_category, SUM(balance) AS total_amount FROM balance WHERE posting_category IS NOT NULL AND posting_category != \'\' GROUP BY year, posting_category) SELECT year, posting_category, total_amount FROM budget_by_category ORDER BY year, posting_category;',
-        orderMatters: true,
-        hint: 'A CTE is a temporary named result you build with WITH, then query like a table. Use WHERE to filter out NULL and empty categories.'
-      },
-      {
-        title: 'Challenge 5 — Stacked CTE: Functional vs Administrative expenses',
-        description: 'Build two CTEs: one summing all \'Charges de fonctionnement direct\' per year, another summing \'Autres charges de fonctionnement\' per year. Join them on year and show year, functional_charges, admin_charges, and the total. Sort by year.',
-        starter: 'WITH functional_charges AS (\n  SELECT year, SUM(balance) AS functional_total\n  FROM balance\n  WHERE posting_category = \'Charges de fonctionnement direct\'\n  GROUP BY year\n),\nadmin_charges AS (\n  SELECT year, SUM(balance) AS admin_total\n  FROM balance\n  WHERE sub_posting_category = \'Autres charges de fonctionnement\'\n  GROUP BY year\n)\nSELECT f.year, f.functional_total, a.admin_total, f.functional_total + a.admin_total AS combined_total\nFROM functional_charges f\nLEFT JOIN admin_charges a ON f.year = a.year\nORDER BY f.year;',
-        reference: 'WITH functional_charges AS (SELECT year, SUM(balance) AS functional_total FROM balance WHERE posting_category=\'Charges de fonctionnement direct\' GROUP BY year),admin_charges AS (SELECT year, SUM(balance) AS admin_total FROM balance WHERE sub_posting_category=\'Autres charges de fonctionnement\' GROUP BY year) SELECT f.year, f.functional_total, a.admin_total, f.functional_total + a.admin_total FROM functional_charges f LEFT JOIN admin_charges a ON f.year = a.year ORDER BY f.year;',
-        orderMatters: true,
-        hint: 'Two CTEs separated by a comma. Use LEFT JOIN to keep all years from the first CTE even if admin data is missing.'
-      },
-      {
-        title: 'Challenge 6 — Stacked CTE: Add LAG() for budget trends',
-        description: 'Extend Challenge 5: build the two category CTEs, then create a third called `budget_trends` that combines both and adds LAG(). SELECT from `budget_trends` showing year, functional charges, admin charges, and year-over-year changes for each. Sort by year.',
-        starter: 'WITH functional_charges AS (\n  SELECT year, SUM(balance) AS functional_total\n  FROM balance\n  WHERE posting_category = \'Charges de fonctionnement direct\'\n  GROUP BY year\n),\nadmin_charges AS (\n  SELECT year, SUM(balance) AS admin_total\n  FROM balance\n  WHERE sub_posting_category = \'Autres charges de fonctionnement\'\n  GROUP BY year\n),\nbudget_trends AS (\n  SELECT \n    f.year,\n    f.functional_total,\n    LAG(f.functional_total) OVER (ORDER BY f.year) AS prev_functional,\n    f.functional_total - LAG(f.functional_total) OVER (ORDER BY f.year) AS functional_change,\n    a.admin_total,\n    LAG(a.admin_total) OVER (ORDER BY f.year) AS prev_admin,\n    a.admin_total - LAG(a.admin_total) OVER (ORDER BY f.year) AS admin_change\n  FROM functional_charges f\n  LEFT JOIN admin_charges a ON f.year = a.year\n)\nSELECT year, functional_total, prev_functional, functional_change, admin_total, prev_admin, admin_change\nFROM budget_trends\nORDER BY year;',
-        reference: 'WITH functional_charges AS (SELECT year, SUM(balance) AS functional_total FROM balance WHERE posting_category=\'Charges de fonctionnement direct\' GROUP BY year),admin_charges AS (SELECT year, SUM(balance) AS admin_total FROM balance WHERE sub_posting_category=\'Autres charges de fonctionnement\' GROUP BY year),budget_trends AS (SELECT f.year,f.functional_total,LAG(f.functional_total) OVER (ORDER BY f.year) AS prev_functional,f.functional_total - LAG(f.functional_total) OVER (ORDER BY f.year) AS functional_change,a.admin_total,LAG(a.admin_total) OVER (ORDER BY f.year) AS prev_admin,a.admin_total - LAG(a.admin_total) OVER (ORDER BY f.year) AS admin_change FROM functional_charges f LEFT JOIN admin_charges a ON f.year = a.year) SELECT year, functional_total, prev_functional, functional_change, admin_total, prev_admin, admin_change FROM budget_trends ORDER BY year;',
-        orderMatters: true,
-        hint: 'Three-level stacked CTE: aggregate separately → join them → add LAG() logic. Use table aliases in the third CTE (f, a) to keep the code clean.'
-      },
-      {
-        title: 'Challenge 7 — Top 5 health programs by budget',
-        description: 'Find the top 5 programs (by total balance) within each posting_category. Use ROW_NUMBER() OVER (PARTITION BY ...) to rank. Show program, posting_category, total, and rank. Sort by posting_category, then rank.',
-        starter: 'WITH program_totals AS (\n  SELECT program, posting_category, SUM(balance) AS total\n  FROM balance\n  WHERE program IS NOT NULL AND program != \'\'\n  GROUP BY program, posting_category\n),\nranked AS (\n  SELECT program, posting_category, total,\n    ROW_NUMBER() OVER (PARTITION BY posting_category ORDER BY total DESC) AS rnk\n  FROM program_totals\n)\nSELECT program, posting_category, total, rnk\nFROM ranked\nWHERE rnk <= 5\nORDER BY posting_category, rnk;',
-        reference: 'WITH program_totals AS (SELECT program, posting_category, SUM(balance) AS total FROM balance WHERE program IS NOT NULL AND program != \'\' GROUP BY program, posting_category),ranked AS (SELECT program, posting_category, total, ROW_NUMBER() OVER (PARTITION BY posting_category ORDER BY total DESC) AS rnk FROM program_totals) SELECT program, posting_category, total, rnk FROM ranked WHERE rnk <= 5 ORDER BY posting_category, rnk;',
-        orderMatters: true,
-        hint: 'PARTITION BY posting_category restarts numbering for each category, so you get the top 5 programs within each category.'
-      },
-      {
-        title: 'Challenge 8 — Most volatile health programs',
-        description: 'Find the top 10 programs with the highest year-over-year budget volatility. Build a CTE for yearly aggregation per program, apply LAG() to measure absolute changes, sum the volatility per program, and rank. Show program, posting_category, and total_volatility.',
-        starter: 'WITH program_yearly AS (\n  SELECT program, year, posting_category, SUM(balance) AS yearly_total\n  FROM balance\n  WHERE program IS NOT NULL AND program != \'\'\n  GROUP BY program, year, posting_category\n),\nprogram_changes AS (\n  SELECT program, posting_category, year,\n    yearly_total,\n    LAG(yearly_total) OVER (PARTITION BY program, posting_category ORDER BY year) AS prev_total,\n    ABS(yearly_total - LAG(yearly_total) OVER (PARTITION BY program, posting_category ORDER BY year)) AS abs_change\n  FROM program_yearly\n),\nprogram_volatility AS (\n  SELECT program, posting_category, SUM(abs_change) AS total_volatility\n  FROM program_changes\n  GROUP BY program, posting_category\n),\nranked_volatility AS (\n  SELECT program, posting_category, total_volatility,\n    ROW_NUMBER() OVER (ORDER BY total_volatility DESC) AS rnk\n  FROM program_volatility\n)\nSELECT program, posting_category, total_volatility\nFROM ranked_volatility\nWHERE rnk <= 10\nORDER BY rnk;',
-        reference: 'WITH program_yearly AS (SELECT program, year, posting_category, SUM(balance) AS yearly_total FROM balance WHERE program IS NOT NULL AND program != \'\' GROUP BY program, year, posting_category),program_changes AS (SELECT program, posting_category, year, yearly_total, LAG(yearly_total) OVER (PARTITION BY program, posting_category ORDER BY year) AS prev_total, ABS(yearly_total - LAG(yearly_total) OVER (PARTITION BY program, posting_category ORDER BY year)) AS abs_change FROM program_yearly),program_volatility AS (SELECT program, posting_category, SUM(abs_change) AS total_volatility FROM program_changes GROUP BY program, posting_category),ranked_volatility AS (SELECT program, posting_category, total_volatility, ROW_NUMBER() OVER (ORDER BY total_volatility DESC) AS rnk FROM program_volatility) SELECT program, posting_category, total_volatility FROM ranked_volatility WHERE rnk <= 10 ORDER BY rnk;',
-        orderMatters: true,
-        hint: 'A 4-level stacked CTE: aggregate yearly → apply LAG() → sum changes → rank. Volatility = total of absolute year-over-year changes.'
-      },
-      {
-        title: 'Challenge 9 — Health budget summary (2025)',
-        description: 'For 2025 only, create a budget summary: sum all \'Charges de fonctionnement direct\', sum all \'Achats, variations de stocks et prestations externes\', sum all \'Autres charges de fonctionnement\', and sum \'Dotations aux amortissements\'. Use four CTEs and cross-join to show all in one row.',
-        starter: 'WITH functional_2025 AS (\n  SELECT SUM(balance) AS functional\n  FROM balance\n  WHERE posting_category = \'Charges de fonctionnement direct\' AND year = 2025\n),\nadjustments_2025 AS (\n  SELECT SUM(balance) AS adjustments\n  FROM balance\n  WHERE sub_posting_category = \'Achats, variations de stocks et prestations externes\' AND year = 2025\n),\nadmin_2025 AS (\n  SELECT SUM(balance) AS admin\n  FROM balance\n  WHERE sub_posting_category = \'Autres charges de fonctionnement\' AND year = 2025\n),\namortization_2025 AS (\n  SELECT SUM(balance) AS amortization\n  FROM balance\n  WHERE sub_posting_category = \'Dotations aux amortissements, aux provisions et aux dépréciations\' AND year = 2025\n)\nSELECT \n  2025 AS year,\n  f.functional,\n  a.adjustments,\n  ad.admin,\n  am.amortization,\n  f.functional + a.adjustments + ad.admin + am.amortization AS total_budget\nFROM functional_2025 f, adjustments_2025 a, admin_2025 ad, amortization_2025 am;',
-        reference: 'WITH functional_2025 AS (SELECT SUM(balance) AS functional FROM balance WHERE posting_category=\'Charges de fonctionnement direct\' AND year=2025),adjustments_2025 AS (SELECT SUM(balance) AS adjustments FROM balance WHERE sub_posting_category=\'Achats, variations de stocks et prestations externes\' AND year=2025),admin_2025 AS (SELECT SUM(balance) AS admin FROM balance WHERE sub_posting_category=\'Autres charges de fonctionnement\' AND year=2025),amortization_2025 AS (SELECT SUM(balance) AS amortization FROM balance WHERE sub_posting_category=\'Dotations aux amortissements, aux provisions et aux dépréciations\' AND year=2025) SELECT 2025, f.functional, a.adjustments, ad.admin, am.amortization, f.functional + a.adjustments + ad.admin + am.amortization FROM functional_2025 f, adjustments_2025 a, admin_2025 ad, amortization_2025 am;',
-        hint: 'Four independent CTEs (no joins between them), cross-joined with comma syntax. Each CTE names its SUM(balance) with an alias.'
-      },
-      {
-        title: 'Challenge 10 — Multi-year budget trends (FINAL)',
-        description: 'The capstone: build a multi-year budget analysis (2015–2025) with all posting categories, net change per year, and year-over-year percentage change. Use stacked CTEs, CASE WHEN for categorization, and LAG(). Sort by year.',
-        starter: 'WITH yearly_budgets AS (\n  SELECT \n    year,\n    SUM(CASE WHEN posting_category = \'Charges de fonctionnement direct\' THEN balance ELSE 0 END) AS functional,\n    SUM(CASE WHEN sub_posting_category = \'Achats, variations de stocks et prestations externes\' THEN balance ELSE 0 END) AS adjustments,\n    SUM(CASE WHEN sub_posting_category = \'Autres charges de fonctionnement\' THEN balance ELSE 0 END) AS admin,\n    SUM(CASE WHEN sub_posting_category = \'Dotations aux amortissements, aux provisions et aux dépréciations\' THEN balance ELSE 0 END) AS amortization\n  FROM balance\n  GROUP BY year\n),\nwith_totals AS (\n  SELECT \n    year,\n    functional,\n    adjustments,\n    admin,\n    amortization,\n    functional + adjustments + admin + amortization AS total_budget\n  FROM yearly_budgets\n),\nwith_trends AS (\n  SELECT \n    year,\n    functional,\n    adjustments,\n    admin,\n    amortization,\n    total_budget,\n    LAG(total_budget) OVER (ORDER BY year) AS prev_total,\n    total_budget - LAG(total_budget) OVER (ORDER BY year) AS net_change,\n    ROUND(100.0 * (total_budget - LAG(total_budget) OVER (ORDER BY year)) / \n          LAG(total_budget) OVER (ORDER BY year), 2) AS pct_change\n  FROM with_totals\n)\nSELECT \n  year, functional, adjustments, admin, amortization, total_budget, \n  prev_total, net_change, pct_change\nFROM with_trends\nORDER BY year;',
-        reference: 'WITH yearly_budgets AS (SELECT year,SUM(CASE WHEN posting_category=\'Charges de fonctionnement direct\' THEN balance ELSE 0 END) AS functional,SUM(CASE WHEN sub_posting_category=\'Achats, variations de stocks et prestations externes\' THEN balance ELSE 0 END) AS adjustments,SUM(CASE WHEN sub_posting_category=\'Autres charges de fonctionnement\' THEN balance ELSE 0 END) AS admin,SUM(CASE WHEN sub_posting_category=\'Dotations aux amortissements, aux provisions et aux dépréciations\' THEN balance ELSE 0 END) AS amortization FROM balance GROUP BY year),with_totals AS (SELECT year,functional,adjustments,admin,amortization,functional + adjustments + admin + amortization AS total_budget FROM yearly_budgets),with_trends AS (SELECT year,functional,adjustments,admin,amortization,total_budget,LAG(total_budget) OVER (ORDER BY year) AS prev_total,total_budget - LAG(total_budget) OVER (ORDER BY year) AS net_change,ROUND(100.0*(total_budget - LAG(total_budget) OVER (ORDER BY year))/LAG(total_budget) OVER (ORDER BY year),2) AS pct_change FROM with_totals) SELECT year,functional,adjustments,admin,amortization,total_budget,prev_total,net_change,pct_change FROM with_trends ORDER BY year;',
-        orderMatters: true,
-        hint: 'Three-level stacked CTE: aggregate by category (CASE WHEN) → compute totals → add LAG() for trends. This is the comprehensive finale analysing the entire Health budget 2015–2025.'
+        title: 'Challenge 1 — Coming soon',
+        description: "This level doesn't have a database or challenges connected yet.",
+        starter: ''
       }
     ]
   },
-
 
   mega: {
     label: 'Mega Expert', color: '#bc8cff',
     backendLoader: null,
     database: {
-      name: '(coming soon)',
-      source: 'data.gouv.fr',
-      description: "This level doesn't have a connected database yet.",
+      name: '(coming soon) SNCF punctuality or road accidents',
+      source: 'data.sncf.com or data.gouv.fr (BAAC)',
+      description: "This level will introduce anomaly detection (deviation from the mean / standard deviation) and complex multi-CTE queries. Technical note: SQLite has no native STDDEV, so it will need to be computed by hand via a subquery on the mean.",
       schema: '(schema not defined yet)'
     },
     concepts: [
-      { term: 'Coming soon', explanation: 'Mega Expert level challenges are being designed.', example: '' }
+      { term: 'Standard deviation (computed by hand)', explanation: "SQLite has no STDDEV function: compute the mean, then the mean of the squared deviations.", example: 'AVG((value - mean) * (value - mean))' }
     ],
     challenges: [
-      { title: 'Challenge 1 — Coming soon', description: "This level doesn't have a database or challenges connected yet.", starter: '' }
+      {
+        title: 'Challenge 1 — Coming soon',
+        description: "This level doesn't have a database or challenges connected yet.",
+        starter: ''
+      }
     ]
   }
 };
 
 /* ============================================================
-   PROGRESS TRACKING (localStorage)
+   DATABASE & STATE MANAGEMENT
    ============================================================ */
-var PROGRESS_KEY = 'queryreal_progress_v4';
 
-function loadAllProgress() {
-  try {
-    var raw = localStorage.getItem(PROGRESS_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch (e) {
-    return {};
+var dbCache = {};
+var dbPromiseCache = {};
+var currentLevel = 'beginner';
+var currentChallengeIndex = 0;
+
+function ensureTableExists(db, table, selectBody) {
+  var check = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='" + table + "';");
+  var exists = check.length > 0 && check[0].values.length > 0;
+  if (!exists) {
+    db.run('CREATE TABLE ' + table + ' AS ' + selectBody + ';');
   }
 }
 
-function saveAllProgress(all) {
-  try { localStorage.setItem(PROGRESS_KEY, JSON.stringify(all)); } catch (e) { /* ignore quota errors */ }
-}
-
-function getProgress(levelId) {
-  var all = loadAllProgress();
+function ensureDB(levelId) {
   var lvl = levels[levelId];
-  if (!all[levelId]) {
-    all[levelId] = {
-      challengeIndex: 0,
-      completed: lvl.challenges.map(function () { return false; }),
-      answers: lvl.challenges.map(function () { return ''; })
-    };
-  }
-  if (!all[levelId].answers) {
-    all[levelId].answers = lvl.challenges.map(function () { return ''; });
-  }
-  return all[levelId];
-}
-
-function setProgress(levelId, progress) {
-  var all = loadAllProgress();
-  all[levelId] = progress;
-  saveAllProgress(all);
-}
-
-function isLevelCompleted(levelId) {
-  var p = getProgress(levelId);
-  return p.completed.length > 0 && p.completed.every(function (c) { return c; });
-}
-
-function isLevelUnlocked(levelId) {
-  var levelsOrder = ['beginner', 'intermediate', 'advanced', 'expert', 'mega'];
-  var idx = levelsOrder.indexOf(levelId);
-  if (idx <= 0) return true;
-  var previous = levelsOrder[idx - 1];
-  return isLevelCompleted(previous);
-}
-
-/* ============================================================
-   UPDATE THE "LEVELS" PAGE (locks + progress)
-   ============================================================ */
-function updateLevelsPageUI() {
-  var levelsOrder = ['beginner', 'intermediate', 'advanced', 'expert', 'mega'];
-  levelsOrder.forEach(function (id) {
-    var btn = document.getElementById('btn-' + id);
-    var badge = document.getElementById('progress-' + id);
-    var p = getProgress(id);
-    var doneCount = p.completed.filter(function (c) { return c; }).length;
-    var total = levels[id].challenges.length;
-    var unlocked = isLevelUnlocked(id);
-
-    if (badge) {
-      badge.textContent = unlocked ? (doneCount + ' / ' + total) : '🔒';
-    }
-    if (btn) {
-      if (unlocked) {
-        btn.classList.remove('locked');
-      } else {
-        btn.classList.add('locked');
-      }
-    }
+  if (!lvl.backendLoader) return Promise.resolve(null);
+  if (dbCache[levelId]) return Promise.resolve(dbCache[levelId]);
+  if (dbPromiseCache[levelId]) return dbPromiseCache[levelId];
+  var loaderFn = window[lvl.backendLoader];
+  dbPromiseCache[levelId] = loaderFn().then(function (db) {
+    dbCache[levelId] = db;
+    return db;
   });
+  return dbPromiseCache[levelId];
 }
 
 /* ============================================================
-   PAGE NAVIGATION
+   DATABASE & TIPS PANELS
    ============================================================ */
-function showPage(id) {
-  var pages = document.querySelectorAll('.page');
-  for (var i = 0; i < pages.length; i++) {
-    pages[i].classList.remove('active');
-  }
-  document.getElementById('page-' + id).classList.add('active');
-  window.scrollTo(0, 0);
-}
 
-/* ============================================================
-   DATABASE PANEL & SQL TIPS PANEL
-   ============================================================ */
 function renderDatabasePanel(level) {
   var html = '<h4>' + level.database.name + '</h4>';
   html += '<p><strong>Source:</strong> ' + level.database.source;
@@ -1177,6 +1289,7 @@ function renderTipsPanel(level) {
 /* ============================================================
    MOBILE DRAWERS
    ============================================================ */
+
 function openDrawer(panelId) {
   document.getElementById(panelId).classList.add('open');
   document.getElementById('drawer-backdrop').classList.add('open');
@@ -1189,49 +1302,78 @@ function closeDrawers() {
 }
 
 /* ============================================================
-   DATABASE CACHING & LOADING
+   LEVEL PROGRESS & UNLOCK LOGIC
    ============================================================ */
-var dbCache = {};
-var dbPromiseCache = {};
 
-function ensureTableExists(db, table, selectBody) {
-  var check = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='" + table + "';");
-  var exists = check.length > 0 && check[0].values.length > 0;
-  if (!exists) {
-    db.run('CREATE TABLE ' + table + ' AS ' + selectBody + ';');
+function isLevelCompleted(levelId) {
+  // Note: this is synchronous but getProgress is async
+  // This is called from updateNavButtons after getProgress is done
+  var all = JSON.parse(localStorage.getItem(PROGRESS_KEY)) || {};
+  var p = all[levelId];
+  return p && p.completed.length > 0 && p.completed.every(function (c) { return c; });
+}
+
+function isLevelUnlocked(levelId) {
+  var idx = levelsOrder.indexOf(levelId);
+  if (idx <= 0) return true;
+  var previous = levelsOrder[idx - 1];
+  return isLevelCompleted(previous);
+}
+
+async function updateLevelsPageUI() {
+  for (var i = 0; i < levelsOrder.length; i++) {
+    var id = levelsOrder[i];
+    var btn = document.getElementById('btn-' + id);
+    var badge = document.getElementById('progress-' + id);
+    var p = await getProgress(id);  // NOW ASYNC!
+    var doneCount = p.completed.filter(function (c) { return c; }).length;
+    var total = levels[id].challenges.length;
+    var unlocked = isLevelUnlocked(id);
+
+    if (badge) {
+      badge.textContent = unlocked ? (doneCount + ' / ' + total) : '🔒';
+    }
+    if (btn) {
+      if (unlocked) {
+        btn.classList.remove('locked');
+      } else {
+        btn.classList.add('locked');
+      }
+    }
   }
 }
 
-function ensureDB(levelId) {
-  var lvl = levels[levelId];
-  if (!lvl.backendLoader) return Promise.resolve(null);
-  if (dbCache[levelId]) return Promise.resolve(dbCache[levelId]);
-  if (dbPromiseCache[levelId]) return dbPromiseCache[levelId];
-  var loaderFn = window[lvl.backendLoader];
-  dbPromiseCache[levelId] = loaderFn().then(function (db) {
-    dbCache[levelId] = db;
-    return db;
-  });
-  return dbPromiseCache[levelId];
+/* ============================================================
+   PAGE NAVIGATION
+   ============================================================ */
+
+function showPage(id) {
+  var pages = document.querySelectorAll('.page');
+  for (var i = 0; i < pages.length; i++) {
+    pages[i].classList.remove('active');
+  }
+  document.getElementById('page-' + id).classList.add('active');
+  window.scrollTo(0, 0);
 }
 
-var currentLevel = 'beginner';
-var currentChallengeIndex = 0;
+/* ============================================================
+   GAME LOGIC - ASYNC VERSIONS
+   ============================================================ */
 
-function showGame(level) {
+async function showGame(level) {
   if (!isLevelUnlocked(level)) {
     alert('🔒 Finish the previous level first to unlock this one.');
     return;
   }
 
   var lvl = levels[level];
-  var progress = getProgress(level);
+  var progress = await getProgress(level);  // NOW ASYNC!
   currentLevel = level;
   currentChallengeIndex = Math.min(progress.challengeIndex, lvl.challenges.length - 1);
 
   renderDatabasePanel(lvl);
   renderTipsPanel(lvl);
-  closeDrawers(); // start each level/challenge view with both drawers closed on mobile
+  closeDrawers();
 
   var badge = document.getElementById('game-badge');
   badge.textContent = lvl.label;
@@ -1242,30 +1384,28 @@ function showGame(level) {
   document.getElementById('btn-run').style.background = lvl.color;
   document.getElementById('btn-next').style.display = 'none';
 
-  renderChallenge();
+  await renderChallenge();
   showPage('game');
 }
 
-function goToChallenge(idx) {
-  var progress = getProgress(currentLevel);
+async function goToChallenge(idx) {
+  var progress = await getProgress(currentLevel);  // NOW ASYNC!
   var maxReachable = progress.challengeIndex;
   if (idx < 0 || idx > maxReachable) return;
   currentChallengeIndex = idx;
-  renderChallenge();
+  await renderChallenge();
 }
 
 function updateNavButtons() {
   var lvl = levels[currentLevel];
-  var progress = getProgress(currentLevel);
-  var isCompleted = progress.completed[currentChallengeIndex];
+  var progress = JSON.parse(localStorage.getItem(PROGRESS_KEY))[currentLevel] || {};
+  var isCompleted = progress.completed && progress.completed[currentChallengeIndex];
 
   var prevBtn = document.getElementById('btn-prev');
   prevBtn.style.display = currentChallengeIndex > 0 ? 'inline-block' : 'none';
 
   var nextBtn = document.getElementById('btn-next');
   if (!isCompleted) {
-    // The current challenge hasn't been validated yet: the "next" button
-    // only reappears after a correct answer (see onChallengeSuccess).
     nextBtn.style.display = 'none';
     return;
   }
@@ -1281,17 +1421,15 @@ function updateNavButtons() {
   }
 }
 
-function renderChallenge() {
+async function renderChallenge() {
   var lvl = levels[currentLevel];
   var challenge = lvl.challenges[currentChallengeIndex];
-  var progress = getProgress(currentLevel);
+  var progress = await getProgress(currentLevel);  // NOW ASYNC!
 
   document.getElementById('game-challenge-counter').textContent =
     'Challenge ' + (currentChallengeIndex + 1) + ' / ' + lvl.challenges.length;
   document.getElementById('game-title').textContent = challenge.title;
   document.getElementById('game-description').innerHTML = challenge.description;
-  // No pre-filled query: empty for a challenge never attempted, or the
-  // already-validated query if the player comes back to a previous challenge.
   document.getElementById('sql-input').value = progress.answers[currentChallengeIndex] || '';
 
   updateNavButtons();
@@ -1303,9 +1441,6 @@ function renderChallenge() {
     box.textContent = '⏳ Loading database…';
     ensureDB(currentLevel).then(function (db) {
       var src = db.__queryRealDataSource || 'unknown';
-      // Some challenges depend on a table created in an earlier challenge
-      // (e.g. re-querying it after a page reload, when the earlier CREATE
-      // TABLE wasn't re-run in this session). Recreate it idempotently.
       if (challenge.setup) {
         challenge.setup.forEach(function (dep) {
           try { ensureTableExists(db, dep.table, dep.selectBody); } catch (e) { console.error('[QueryReal] Challenge setup failed:', e); }
@@ -1322,8 +1457,9 @@ function renderChallenge() {
 }
 
 /* ============================================================
-   RESULT COMPARISON (challenge validation)
+   RESULT COMPARISON & VALIDATION
    ============================================================ */
+
 function normalizeValue(v) {
   if (typeof v === 'number') return Math.round(v * 10000) / 10000;
   if (v === null || v === undefined) return null;
@@ -1346,10 +1482,6 @@ function resultsMatch(userExec, refExec, orderMatters) {
   var u = extractExec(userExec);
   var r = extractExec(refExec);
   if (u.values.length !== r.values.length) return false;
-  // Column count must match, including when both results are empty
-  // (0 rows): otherwise two structurally different queries that both
-  // happen to return 0 rows would be wrongly accepted (this was
-  // observed with a fact table left empty by mistake).
   if (u.columns.length !== r.columns.length) return false;
   if (u.values.length === 0) return true;
   var normU = normalizeRows(u.values, orderMatters);
@@ -1360,9 +1492,6 @@ function resultsMatch(userExec, refExec, orderMatters) {
   return true;
 }
 
-/* ============================================================
-   RUNNING A QUERY
-   ============================================================ */
 var RESULT_DISPLAY_CAP = 200;
 
 function renderResultTable(box, columns, values) {
@@ -1391,54 +1520,47 @@ function renderResultTable(box, columns, values) {
 
 function onChallengeSuccess(submittedQuery) {
   var lvl = levels[currentLevel];
-  var progress = getProgress(currentLevel);
-  progress.completed[currentChallengeIndex] = true;
-  progress.answers[currentChallengeIndex] = submittedQuery;
+  
+  getProgress(currentLevel).then(function(progress) {
+    progress.completed[currentChallengeIndex] = true;
+    progress.answers[currentChallengeIndex] = submittedQuery;
 
-  var isLastChallenge = currentChallengeIndex === lvl.challenges.length - 1;
-  if (!isLastChallenge) {
-    progress.challengeIndex = currentChallengeIndex + 1;
-  }
-  setProgress(currentLevel, progress);
-  updateLevelsPageUI();
-  updateNavButtons();
+    var isLastChallenge = currentChallengeIndex === lvl.challenges.length - 1;
+    if (!isLastChallenge) {
+      progress.challengeIndex = currentChallengeIndex + 1;
+    }
+    
+    setProgress(currentLevel, progress);
+    updateLevelsPageUI();
+    updateNavButtons();
 
-  var box = document.getElementById('result-box');
+    var box = document.getElementById('result-box');
 
-  if (isLastChallenge) {
-    var nextIdx = levelsOrder.indexOf(currentLevel) + 1;
-    var nextLabel = nextIdx < levelsOrder.length ? levels[levelsOrder[nextIdx]].label : null;
-    box.className = 'result-box ok';
-    box.innerHTML = '🎉 Level "' + lvl.label + '" completed!' +
-      (nextLabel ? ' The "' + nextLabel + '" level is now unlocked.' : ' That was the last level, well done!');
-  } else {
-    box.className = 'result-box ok';
-    box.innerHTML = '✅ Correct answer! Challenge ' + (currentChallengeIndex + 1) + ' validated.';
-  }
+    if (isLastChallenge) {
+      var nextIdx = levelsOrder.indexOf(currentLevel) + 1;
+      var nextLabel = nextIdx < levelsOrder.length ? levels[levelsOrder[nextIdx]].label : null;
+      box.className = 'result-box ok';
+      box.innerHTML = '🎉 Level "' + lvl.label + '" completed!' +
+        (nextLabel ? ' The "' + nextLabel + '" level is now unlocked.' : ' That was the last level, well done!');
+    } else {
+      box.className = 'result-box ok';
+      box.innerHTML = '✅ Correct answer! Challenge ' + (currentChallengeIndex + 1) + ' validated.';
+    }
+  });
 }
 
-// Mobile keyboards (especially iOS) often replace straight quotes/
-// apostrophes with their typographic equivalent (' -> ' ', " -> " ")
-// via autocorrect. SQLite doesn't recognize those as string delimiters,
-// which silently breaks queries. Normalize them here.
 function normalizeSqlQuotes(q) {
   return q
     .replace(/[\u2018\u2019\u02BC]/g, "'")
     .replace(/[\u201C\u201D]/g, '"');
 }
 
-// For 'create' challenges: instead of comparing a query's result set,
-// we check that the player's statement actually created the expected
-// table, then compare that table's content against a hidden reference
-// table built from the same selectBody — created lazily via
-// ensureTableExists, so it's safe to call on every attempt.
 function runCreateTableChallenge(db, challenge, q) {
   var box = document.getElementById('result-box');
   var target = challenge.targetTable;
   var refTable = '__ref_' + target;
 
-  // Allow retries: wipe any previous attempt at this table first.
-  try { db.run('DROP TABLE IF EXISTS ' + target + ';'); } catch (e) { /* ignore */ }
+  try { db.run('DROP TABLE IF EXISTS ' + target + ';'); } catch (e) { }
 
   try {
     db.exec(q);
@@ -1502,7 +1624,7 @@ function runCreateTableChallenge(db, challenge, q) {
 function runQuery() {
   var input = document.getElementById('sql-input');
   var q = normalizeSqlQuotes(input.value.trim());
-  input.value = q; // reflect the correction on screen so it's transparent
+  input.value = q;
   var box = document.getElementById('result-box');
 
   if (!q) {
@@ -1541,10 +1663,6 @@ function runQuery() {
     return;
   }
 
-  // Some challenges require a specific keyword (e.g. LEFT JOIN), because
-  // on the current dataset a plain JOIN can happen to return the exact
-  // same result — which would defeat the point of the exercise if we
-  // only compared results. This checks the query text itself.
   if (challenge.requiredKeyword && q.toUpperCase().indexOf(challenge.requiredKeyword.toUpperCase()) === -1) {
     var reqRes = extractExec(userExec);
     var reqTableHtml = document.createElement('div');
@@ -1588,6 +1706,7 @@ function runQuery() {
 /* ============================================================
    EVENTS
    ============================================================ */
+
 document.addEventListener('DOMContentLoaded', function () {
   updateLevelsPageUI();
 
@@ -1619,7 +1738,6 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('sql-input').focus();
   });
 
-  // Mobile edge tabs: tap to slide the matching panel in from the right.
   document.getElementById('edge-tab-database').addEventListener('click', function () {
     openDrawer('panel-database');
   });

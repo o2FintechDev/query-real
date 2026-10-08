@@ -42,6 +42,27 @@ auth.onAuthStateChanged((user) => {
 // ============================================================
 // AUTHENTICATION FUNCTIONS
 // ============================================================
+async function signInWithGoogle() {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  try {
+    await auth.signInWithPopup(provider);
+    console.log('✅ Google sign-in success');
+  } catch (error) {
+    console.error('❌ Google sign-in failed:', error);
+    alert('Erreur Google: ' + error.message);
+  }
+}
+
+async function signInWithGitHub() {
+  const provider = new firebase.auth.GithubAuthProvider();
+  try {
+    await auth.signInWithPopup(provider);
+    console.log('✅ GitHub sign-in success');
+  } catch (error) {
+    console.error('❌ GitHub sign-in failed:', error);
+    alert('Erreur GitHub: ' + error.message);
+  }
+}
 
 async function signUp(email, password, passwordConfirm) {
   const msgBox = document.getElementById('auth-message');

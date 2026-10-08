@@ -889,6 +889,7 @@
 <script src="backend-beginner.js"></script>
 <script src="backend-intermediate.js"></script>
 <script src="backend-advanced.js"></script>
+<script src="backend-expert.js"></script>
 <script src="firebase-config.js"></script>
 <script src="firebase-storage.js"></script>
 <script>
@@ -1205,22 +1206,101 @@ var levels = {
 
   expert: {
     label: 'Expert', color: '#f0883e',
-    backendLoader: null,
+    backendLoader: 'loadExpertDB',
     database: {
-      name: '(coming soon) Public health data over time',
-      source: 'data.gouv.fr / Santé publique France',
-      description: 'This level will introduce time-series analysis, stacked CTEs, and functions like LAG/LEAD to compute growth rates.',
-      schema: '(schema not defined yet)'
+      name: 'French State Accounting (CGE 2014–2024)',
+      source: "Ministère de l'Économie et des Finances — <code>data.economie.gouv.fr</code>",
+      link: 'https://data.economie.gouv.fr/explore/dataset/balances_des_comptes_etat/',
+      tables: ['balance', 'account_ref'],
+      description: 'Compte Général de l\'État (CGE) — 10+ years of accounting balances for the French state. Each balance records assets, liabilities, revenues, and expenses by account, budget nature, and functional program. Demonstrates time-series analysis with LAG/LEAD and stacked CTEs.',
+      schema: 'balance(year, account_code, account_name, posting_category, nature_budgetaire, program, balance)\naccount_ref(account_code, account_name, posting_category)'
     },
     concepts: [
-      { term: 'Stacked CTEs', explanation: 'Several successive WITH clauses, each building on the previous one.', example: 'WITH a AS (...), b AS (SELECT ... FROM a) SELECT * FROM b;' },
-      { term: 'LAG() / LEAD()', explanation: 'Fetches the value from the previous or next row, useful for comparing a period to the one before it.', example: 'LAG(value) OVER (ORDER BY year)' }
+      { term: 'LAG() / LEAD()', explanation: 'Window functions that fetch a value from the previous or next row in sorted order — essential for time-series and year-over-year comparisons.', example: 'LAG(balance) OVER (ORDER BY year)' },
+      { term: 'Stacked CTEs', explanation: 'Multiple WITH clauses in sequence, each building on previous ones — makes complex multi-step analyses readable.', example: 'WITH a AS (...), b AS (SELECT ... FROM a), c AS (SELECT ... FROM b) SELECT * FROM c;' },
+      { term: 'CASE WHEN (in aggregates)', explanation: 'Conditional logic inside SUM/COUNT to selectively aggregate rows by category.', example: 'SUM(CASE WHEN category="Expenses" THEN amount ELSE 0 END)' },
+      { term: 'PARTITION BY (in window functions)', explanation: 'Restart numbering or calculations for each group, instead of across all rows.', example: 'ROW_NUMBER() OVER (PARTITION BY program ORDER BY balance DESC)' },
+      { term: 'ABS() and percentage math', explanation: 'Absolute value for measuring volatility; percentage change = (current - previous) / previous * 100.', example: 'ABS(value - prev_value), ROUND(..., 2)' }
     ],
     challenges: [
       {
-        title: 'Challenge 1 — Coming soon',
-        description: "This level doesn't have a database or challenges connected yet.",
-        starter: ''
+        title: 'Challenge 1 — Total balance by year',
+        description: 'Show the total balance (sum of all balances) for each year, sorted from oldest to newest.',
+        starter: 'SELECT year, SUM(balance) AS total_balance\nFROM balance\nGROUP BY year\nORDER BY year;',
+        reference: 'SELECT year, SUM(balance) FROM balance GROUP BY year ORDER BY year;',
+        hint: 'GROUP BY year to aggregate, then ORDER BY year to sort chronologically.'
+      },
+      {
+        title: 'Challenge 2 — Year-over-year change with LAG()',
+        description: 'For each year, show the total balance, the previous year\'s balance using LAG(), and the year-over-year change. Sort by year.',
+        starter: 'SELECT \n  year,\n  SUM(balance) AS total_balance,\n  LAG(SUM(balance)) OVER (ORDER BY year) AS previous_year_balance,\n  SUM(balance) - LAG(SUM(balance)) OVER (ORDER BY year) AS yoy_change\nFROM balance\nGROUP BY year\nORDER BY year;',
+        reference: 'SELECT year, SUM(balance), LAG(SUM(balance)) OVER (ORDER BY year), SUM(balance) - LAG(SUM(balance)) OVER (ORDER BY year) FROM balance GROUP BY year ORDER BY year;',
+        orderMatters: true,
+        hint: 'LAG() OVER (ORDER BY year) fetches the previous row\'s value. The first row will have NULL.'
+      },
+      {
+        title: 'Challenge 3 — Percentage change year-over-year',
+        description: 'For each year (starting 2015), show the year, total balance, and percentage change from the previous year. Use ROUND(..., 2) for formatting.',
+        starter: 'SELECT \n  year,\n  SUM(balance) AS total_balance,\n  ROUND(100.0 * (SUM(balance) - LAG(SUM(balance)) OVER (ORDER BY year)) \n        / LAG(SUM(balance)) OVER (ORDER BY year), 2) AS pct_change\nFROM balance\nGROUP BY year\nHAVING year > 2014\nORDER BY year;',
+        reference: 'SELECT year, SUM(balance), ROUND(100.0 * (SUM(balance) - LAG(SUM(balance)) OVER (ORDER BY year)) / LAG(SUM(balance)) OVER (ORDER BY year), 2) FROM balance GROUP BY year HAVING year > 2014 ORDER BY year;',
+        orderMatters: true,
+        hint: 'Percentage change = (current − previous) / previous × 100. HAVING filters after aggregation.'
+      },
+      {
+        title: 'Challenge 4 — CTE: Group by posting category',
+        description: 'Using a WITH clause, create a CTE called `yearly_by_posting` that groups balances by year and posting_category. Then SELECT to show year, posting_category, and the total amount. Sort by year, then posting_category.',
+        starter: 'WITH yearly_by_posting AS (\n  SELECT \n    year,\n    posting_category,\n    SUM(balance) AS total_amount\n  FROM balance\n  GROUP BY year, posting_category\n)\nSELECT year, posting_category, total_amount\nFROM yearly_by_posting\nORDER BY year, posting_category;',
+        reference: 'WITH yearly_by_posting AS (SELECT year, posting_category, SUM(balance) AS total_amount FROM balance GROUP BY year, posting_category) SELECT year, posting_category, total_amount FROM yearly_by_posting ORDER BY year, posting_category;',
+        orderMatters: true,
+        hint: 'A CTE is a temporary named result you build with WITH, then query from like a table. Reference the bare SUM(balance) in the outer SELECT.'
+      },
+      {
+        title: 'Challenge 5 — Compare two posting categories per year',
+        description: 'Build two CTEs: one for the top posting_category by balance (call it `top_cat`), and one for the second-most common (call it `second_cat`). Join them by year and show year, top_cat balance, second_cat balance, and the difference. Sort by year.',
+        starter: 'WITH cat_totals AS (\n  SELECT year, posting_category, SUM(balance) AS total\n  FROM balance\n  GROUP BY year, posting_category\n),\ntop_cat AS (\n  SELECT year, posting_category, total\n  FROM cat_totals\n  WHERE posting_category IN (\n    SELECT posting_category FROM cat_totals GROUP BY posting_category ORDER BY SUM(total) DESC LIMIT 1\n  )\n),\nsecond_cat AS (\n  SELECT year, posting_category, total\n  FROM cat_totals\n  WHERE posting_category IN (\n    SELECT posting_category FROM cat_totals GROUP BY posting_category ORDER BY SUM(total) DESC LIMIT 1 OFFSET 1\n  )\n)\nSELECT t.year, t.total AS top_total, s.total AS second_total, t.total - s.total AS difference\nFROM top_cat t\nLEFT JOIN second_cat s ON t.year = s.year\nORDER BY t.year;',
+        reference: 'WITH cat_totals AS (SELECT year, posting_category, SUM(balance) AS total FROM balance GROUP BY year, posting_category),top_cat AS (SELECT year, posting_category, total FROM cat_totals WHERE posting_category IN (SELECT posting_category FROM cat_totals GROUP BY posting_category ORDER BY SUM(total) DESC LIMIT 1)),second_cat AS (SELECT year, posting_category, total FROM cat_totals WHERE posting_category IN (SELECT posting_category FROM cat_totals GROUP BY posting_category ORDER BY SUM(total) DESC LIMIT 1 OFFSET 1)) SELECT t.year, t.total AS top_total, s.total AS second_total, t.total - s.total AS difference FROM top_cat t LEFT JOIN second_cat s ON t.year = s.year ORDER BY t.year;',
+        orderMatters: true,
+        hint: 'Use nested SELECT to identify the top and second posting_category by total balance across all years, then JOIN those back per year. A LEFT JOIN handles years where the second category might not exist.'
+      },
+      {
+        title: 'Challenge 6 — Stacked CTE with LAG(): trends per posting category',
+        description: 'Build a CTE that groups by posting_category and year, then add LAG() to compute year-over-year changes per category. Show posting_category, year, balance, and the change from the previous year. Sort by posting_category, then year.',
+        starter: 'WITH cat_yearly AS (\n  SELECT posting_category, year, SUM(balance) AS total_balance\n  FROM balance\n  GROUP BY posting_category, year\n),\ncat_with_lag AS (\n  SELECT\n    posting_category,\n    year,\n    total_balance,\n    LAG(total_balance) OVER (PARTITION BY posting_category ORDER BY year) AS prev_year_balance,\n    total_balance - LAG(total_balance) OVER (PARTITION BY posting_category ORDER BY year) AS yoy_change\n  FROM cat_yearly\n)\nSELECT posting_category, year, total_balance, prev_year_balance, yoy_change\nFROM cat_with_lag\nORDER BY posting_category, year;',
+        reference: 'WITH cat_yearly AS (SELECT posting_category, year, SUM(balance) AS total_balance FROM balance GROUP BY posting_category, year),cat_with_lag AS (SELECT posting_category, year, total_balance, LAG(total_balance) OVER (PARTITION BY posting_category ORDER BY year) AS prev_year_balance, total_balance - LAG(total_balance) OVER (PARTITION BY posting_category ORDER BY year) AS yoy_change FROM cat_yearly) SELECT posting_category, year, total_balance, prev_year_balance, yoy_change FROM cat_with_lag ORDER BY posting_category, year;',
+        orderMatters: true,
+        hint: 'PARTITION BY posting_category restarts LAG() for each category independently, so each category gets its own trend line.'
+      },
+      {
+        title: 'Challenge 7 — Top 3 programs per posting category',
+        description: 'For each posting_category, find the top 3 programs (by total balance) using ROW_NUMBER(). Show posting_category, program, total balance, and rank. Sort by posting_category, then rank.',
+        starter: 'WITH prog_totals AS (\n  SELECT posting_category, program, SUM(balance) AS total\n  FROM balance\n  WHERE program IS NOT NULL AND program != \'\'\n  GROUP BY posting_category, program\n),\nranked AS (\n  SELECT posting_category, program, total,\n    ROW_NUMBER() OVER (PARTITION BY posting_category ORDER BY total DESC) AS rnk\n  FROM prog_totals\n)\nSELECT posting_category, program, total, rnk\nFROM ranked\nWHERE rnk <= 3\nORDER BY posting_category, rnk;',
+        reference: 'WITH prog_totals AS (SELECT posting_category, program, SUM(balance) AS total FROM balance WHERE program IS NOT NULL AND program != \'\' GROUP BY posting_category, program),ranked AS (SELECT posting_category, program, total, ROW_NUMBER() OVER (PARTITION BY posting_category ORDER BY total DESC) AS rnk FROM prog_totals) SELECT posting_category, program, total, rnk FROM ranked WHERE rnk <= 3 ORDER BY posting_category, rnk;',
+        orderMatters: true,
+        hint: 'PARTITION BY posting_category restarts ROW_NUMBER() for each category, so you get top 3 within each posting_category independently.'
+      },
+      {
+        title: 'Challenge 8 — Most volatile budget lines',
+        description: 'Find the top 10 (program, posting_category) pairs with the highest year-over-year volatility. Build a CTE for yearly aggregation, apply LAG() to measure absolute changes, sum per pair, and rank. Show program, posting_category, and total volatility.',
+        starter: 'WITH yearly_prog AS (\n  SELECT program, posting_category, year, SUM(balance) AS yearly_balance\n  FROM balance\n  WHERE program IS NOT NULL AND program != \'\'\n  GROUP BY program, posting_category, year\n),\nvolatility_calc AS (\n  SELECT program, posting_category, ABS(yearly_balance - LAG(yearly_balance) OVER (PARTITION BY program, posting_category ORDER BY year)) AS change\n  FROM yearly_prog\n),\nprogram_volatility AS (\n  SELECT program, posting_category, SUM(change) AS total_volatility\n  FROM volatility_calc\n  WHERE change IS NOT NULL\n  GROUP BY program, posting_category\n)\nSELECT program, posting_category, total_volatility\nFROM program_volatility\nORDER BY total_volatility DESC\nLIMIT 10;',
+        reference: 'WITH yearly_prog AS (SELECT program, posting_category, year, SUM(balance) AS yearly_balance FROM balance WHERE program IS NOT NULL AND program != \'\' GROUP BY program, posting_category, year),volatility_calc AS (SELECT program, posting_category, ABS(yearly_balance - LAG(yearly_balance) OVER (PARTITION BY program, posting_category ORDER BY year)) AS change FROM yearly_prog),program_volatility AS (SELECT program, posting_category, SUM(change) AS total_volatility FROM volatility_calc WHERE change IS NOT NULL GROUP BY program, posting_category) SELECT program, posting_category, total_volatility FROM program_volatility ORDER BY total_volatility DESC LIMIT 10;',
+        orderMatters: true,
+        hint: 'Chain three CTEs: yearly sums per (program, category) → LAG() for year-over-year changes → SUM(ABS()) to measure total volatility. Only include non-NULL changes.'
+      },
+      {
+        title: 'Challenge 9 — Top posting category by year',
+        description: 'For each year, find the posting_category with the highest total balance. Show year, posting_category, and that year\'s balance for that category. Sort by year.',
+        starter: 'WITH cat_yearly AS (\n  SELECT year, posting_category, SUM(balance) AS total_balance\n  FROM balance\n  GROUP BY year, posting_category\n),\nranked_by_year AS (\n  SELECT year, posting_category, total_balance,\n    ROW_NUMBER() OVER (PARTITION BY year ORDER BY total_balance DESC) AS rnk\n  FROM cat_yearly\n)\nSELECT year, posting_category, total_balance\nFROM ranked_by_year\nWHERE rnk = 1\nORDER BY year;',
+        reference: 'WITH cat_yearly AS (SELECT year, posting_category, SUM(balance) AS total_balance FROM balance GROUP BY year, posting_category),ranked_by_year AS (SELECT year, posting_category, total_balance, ROW_NUMBER() OVER (PARTITION BY year ORDER BY total_balance DESC) AS rnk FROM cat_yearly) SELECT year, posting_category, total_balance FROM ranked_by_year WHERE rnk = 1 ORDER BY year;',
+        orderMatters: true,
+        hint: 'PARTITION BY year to rank categories within each year, then filter for rank = 1 to get the top category per year.'
+      },
+      {
+        title: 'Challenge 10 — Account-level trends with stacked CTEs (FINAL)',
+        description: 'The capstone: for each account_code (with non-empty account_name), compute total balance per year, add LAG() for year-over-year change, and calculate percentage change. Use stacked CTEs. Show account_code, account_name, year, balance, previous year balance, change, and pct_change. Sort by account_code, then year. (Filter out accounts where all balances are 0 or name is empty.)',
+        starter: 'WITH account_yearly AS (\n  SELECT account_code, account_name, year, SUM(balance) AS yearly_balance\n  FROM balance\n  WHERE account_name IS NOT NULL AND account_name != \'\'\n  GROUP BY account_code, account_name, year\n),\nwith_lag AS (\n  SELECT account_code, account_name, year, yearly_balance,\n    LAG(yearly_balance) OVER (PARTITION BY account_code ORDER BY year) AS prev_balance,\n    yearly_balance - LAG(yearly_balance) OVER (PARTITION BY account_code ORDER BY year) AS balance_change,\n    ROUND(100.0 * (yearly_balance - LAG(yearly_balance) OVER (PARTITION BY account_code ORDER BY year)) /\n          LAG(yearly_balance) OVER (PARTITION BY account_code ORDER BY year), 2) AS pct_change\n  FROM account_yearly\n)\nSELECT account_code, account_name, year, yearly_balance, prev_balance, balance_change, pct_change\nFROM with_lag\nORDER BY account_code, year\nLIMIT 100;',
+        reference: 'WITH account_yearly AS (SELECT account_code, account_name, year, SUM(balance) AS yearly_balance FROM balance WHERE account_name IS NOT NULL AND account_name != \'\' GROUP BY account_code, account_name, year),with_lag AS (SELECT account_code, account_name, year, yearly_balance, LAG(yearly_balance) OVER (PARTITION BY account_code ORDER BY year) AS prev_balance, yearly_balance - LAG(yearly_balance) OVER (PARTITION BY account_code ORDER BY year) AS balance_change, ROUND(100.0 * (yearly_balance - LAG(yearly_balance) OVER (PARTITION BY account_code ORDER BY year)) / LAG(yearly_balance) OVER (PARTITION BY account_code ORDER BY year), 2) AS pct_change FROM account_yearly) SELECT account_code, account_name, year, yearly_balance, prev_balance, balance_change, pct_change FROM with_lag ORDER BY account_code, year LIMIT 100;',
+        orderMatters: true,
+        hint: 'Stacked CTE pattern: aggregate yearly → add LAG() with PARTITION BY account_code to compute trends per account. The LIMIT 100 keeps result size reasonable; challenge validation still checks all data.'
       }
     ]
   },

@@ -1,196 +1,126 @@
 /* ============================================================
-   FIREBASE STORAGE LAYER
-   ============================================================
-   Manages progress synchronization between Firestore (cloud)
-   and localStorage (local cache + offline fallback)
+   STOCKAGE DE LA PROGRESSION
+   Local d'abord (instantané), cloud ensuite si connecté.
    ============================================================ */
 
 const PROGRESS_KEY = 'queryreal_progress_v4';
-const SYNC_TIMEOUT = 5000; // 5 seconds before fallback to localStorage
+const OWNER_KEY = 'queryreal_owner';
 
-// ============================================================
-// LOAD PROGRESS FROM FIRESTORE (or fallback to localStorage)
-// ============================================================
-async function loadProgress(levelId) {
-  if (!currentUser) {
-    // Not logged in: use localStorage only
-    return loadProgressLocal(levelId);
-  }
-
-  try {
-    // Try to fetch from Firestore with timeout
-    const docRef = db.collection('users').doc(currentUser.uid);
-    const timeout = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Firestore timeout')), SYNC_TIMEOUT)
-    );
-    
-    const docPromise = docRef.get();
-    const doc = await Promise.race([docPromise, timeout]);
-    
-    if (doc.exists && doc.data().progress && doc.data().progress[levelId]) {
-      console.log(`✅ Loaded ${levelId} from Firestore`);
-      const fsProgress = doc.data().progress[levelId];
-      
-      // Also update localStorage as backup
-      updateProgressLocal(levelId, fsProgress);
-      
-      return fsProgress;
-    }
-  } catch (error) {
-    console.warn(`⚠️ Firestore fetch failed for ${levelId}, falling back to localStorage:`, error.message);
-  }
-
-  // Fallback: use localStorage
-  return loadProgressLocal(levelId);
-}
-
-// ============================================================
-// SAVE PROGRESS TO FIRESTORE (and localStorage)
-// ============================================================
-async function saveProgress(levelId, progressData) {
-  // Always save to localStorage immediately (offline support)
-  updateProgressLocal(levelId, progressData);
-
-  if (!currentUser) {
-    console.log('ℹ️ Not logged in, saved to localStorage only');
-    return;
-  }
-
-  try {
-    // Save to Firestore in background (async, don't wait)
-    const docRef = db.collection('users').doc(currentUser.uid);
-    await docRef.update({
-      [`progress.${levelId}`]: progressData,
-      lastUpdated: new Date()
-    });
-    console.log(`✅ Saved ${levelId} to Firestore`);
-  } catch (error) {
-    console.error(`❌ Failed to save ${levelId} to Firestore:`, error);
-    // Progress is already in localStorage, so we're not losing data
-  }
-}
-
-// ============================================================
-// SYNC ALL PROGRESS FROM FIRESTORE ON APP START
-// ============================================================
-async function syncProgressFromFirestore() {
-  if (!currentUser) return;
-
-  try {
-    const doc = await db.collection('users').doc(currentUser.uid).get();
-    if (doc.exists && doc.data().progress) {
-      console.log('🔄 Syncing all progress from Firestore...');
-      const allProgress = doc.data().progress;
-      
-      // Update localStorage with all levels
-      Object.keys(allProgress).forEach(levelId => {
-        updateProgressLocal(levelId, allProgress[levelId]);
-      });
-      
-      console.log('✅ Sync complete');
-    }
-  } catch (error) {
-    console.error('❌ Sync failed:', error);
-  }
-}
-
-// ============================================================
-// LOCAL STORAGE FUNCTIONS (as backup + offline support)
-// ============================================================
-function loadProgressLocal(levelId) {
-  try {
-    const all = JSON.parse(localStorage.getItem(PROGRESS_KEY)) || {};
-    if (all[levelId]) {
-      return all[levelId];
-    }
-    
-    // Crée une structure vide si nécessaire
-    // (sera remplie quand le jeu charge les niveaux)
-    return createEmptyProgress(levelId);
-  } catch (e) {
-    return createEmptyProgress(levelId);
-  }
-}
-
-function updateProgressLocal(levelId, progressData) {
-  try {
-    const all = JSON.parse(localStorage.getItem(PROGRESS_KEY)) || {};
-    all[levelId] = progressData;
-    localStorage.setItem(PROGRESS_KEY, JSON.stringify(all));
-  } catch (e) {
-    console.error('localStorage error:', e);
-  }
+function challengeCount(levelId) {
+  return (typeof levels !== 'undefined' && levels[levelId])
+    ? levels[levelId].challenges.length
+    : 5;
 }
 
 function createEmptyProgress(levelId) {
+  const n = challengeCount(levelId);
   return {
     challengeIndex: 0,
-    completed: [], // Vide pour commencer
-    answers: []
+    completed: new Array(n).fill(false),
+    answers: new Array(n).fill('')
   };
 }
 
-// ============================================================
-// CLOUD BACKUP UTILITIES
-// ============================================================
+// Force une structure propre (tableaux pleins, types corrects).
+// Indispensable : Firestore n'accepte pas les tableaux à trous.
+function normalizeProgress(levelId, p) {
+  const base = createEmptyProgress(levelId);
+  if (!p || typeof p !== 'object') return base;
 
-// Check if user has unsynced local changes
-async function hasUnsyncedChanges() {
-  if (!currentUser) return false;
+  const n = base.completed.length;
+  const idx = parseInt(p.challengeIndex, 10);
+  base.challengeIndex = Math.min(Math.max(isNaN(idx) ? 0 : idx, 0), n - 1);
 
+  for (let i = 0; i < n; i++) {
+    base.completed[i] = !!(Array.isArray(p.completed) && p.completed[i]);
+    base.answers[i] = (Array.isArray(p.answers) && typeof p.answers[i] === 'string')
+      ? p.answers[i]
+      : '';
+  }
+  return base;
+}
+
+function countCompleted(p) {
+  return p.completed.filter(Boolean).length;
+}
+
+// En cas de conflit local / cloud, on garde la version la plus avancée.
+function mergeProgress(levelId, local, cloud) {
+  const l = normalizeProgress(levelId, local);
+  const c = normalizeProgress(levelId, cloud);
+  return countCompleted(c) > countCompleted(l) ? c : l;
+}
+
+// ------------------------------------------------------------
+// LOCAL (synchrone, toujours disponible)
+// ------------------------------------------------------------
+function readAllLocal() {
   try {
-    const doc = await db.collection('users').doc(currentUser.uid).get();
-    if (!doc.exists) return true;
-
-    const cloudLastUpdate = doc.data().lastUpdated?.toDate() || new Date(0);
-    const localData = localStorage.getItem(PROGRESS_KEY);
-    
-    // If there's local data and cloud is older, there are unsynced changes
-    return localData && cloudLastUpdate.getTime() < new Date().getTime() - 60000; // 1 min threshold
-  } catch (error) {
-    console.error('Error checking sync status:', error);
-    return false;
+    return JSON.parse(localStorage.getItem(PROGRESS_KEY)) || {};
+  } catch (e) {
+    return {};
   }
 }
 
-// Force full sync: push all local progress to Firestore
-async function forceFullSync() {
-  if (!currentUser) {
-    alert('Vous devez être connecté pour synchroniser');
-    return;
-  }
+function loadProgressLocal(levelId) {
+  return normalizeProgress(levelId, readAllLocal()[levelId]);
+}
 
+function updateProgressLocal(levelId, data) {
+  const all = readAllLocal();
+  all[levelId] = normalizeProgress(levelId, data);
   try {
-    const localData = JSON.parse(localStorage.getItem(PROGRESS_KEY)) || {};
-    
-    // Reconstruct complete progress object with default values
-    const completeProgress = {};
-    Object.keys(levels).forEach(levelId => {
-      completeProgress[levelId] = localData[levelId] || createEmptyProgress(levelId);
-    });
+    localStorage.setItem(PROGRESS_KEY, JSON.stringify(all));
+  } catch (e) {
+    console.error('[QueryReal] Sauvegarde locale impossible :', e);
+  }
+}
 
-    await db.collection('users').doc(currentUser.uid).update({
-      progress: completeProgress,
+// ------------------------------------------------------------
+// CLOUD (asynchrone, facultatif)
+// ------------------------------------------------------------
+async function pushProgressCloud(levelId) {
+  if (!currentUser || !db) return;
+  try {
+    await db.collection('users').doc(currentUser.uid).set({
+      progress: { [levelId]: loadProgressLocal(levelId) },
       lastUpdated: new Date()
-    });
-
-    alert('✅ Synchronisation réussie ! Votre progression a été sauvegardée.');
-    console.log('✅ Full sync complete');
-  } catch (error) {
-    alert('❌ Erreur lors de la synchronisation: ' + error.message);
-    console.error('Full sync error:', error);
+    }, { merge: true });
+  } catch (e) {
+    console.error('[QueryReal] Synchronisation cloud échouée :', e);
   }
 }
 
-// ============================================================
-// REPLACED PROGRESS FUNCTIONS (from original index.html)
-// These now use Firebase instead of pure localStorage
-// ============================================================
-
-async function getProgress(levelId) {
-  return await loadProgress(levelId);
+// Enregistre localement tout de suite, puis envoie au cloud sans attendre.
+function setProgress(levelId, data) {
+  updateProgressLocal(levelId, data);
+  pushProgressCloud(levelId);
 }
 
-function setProgress(levelId, progress) {
-  saveProgress(levelId, progress);
+// Appelée à la connexion : fusionne local et cloud pour chaque niveau.
+async function syncProgressFromFirestore() {
+  if (!currentUser || !db || typeof levels === 'undefined') return;
+
+  // Évite de mélanger la progression d'un autre compte sur un ordinateur partagé
+  const previousOwner = localStorage.getItem(OWNER_KEY);
+  if (previousOwner && previousOwner !== currentUser.uid) {
+    localStorage.removeItem(PROGRESS_KEY);
+  }
+  localStorage.setItem(OWNER_KEY, currentUser.uid);
+
+  try {
+    const ref = db.collection('users').doc(currentUser.uid);
+    const doc = await ref.get();
+    const cloud = (doc.exists && doc.data().progress) || {};
+
+    const merged = {};
+    Object.keys(levels).forEach(id => {
+      merged[id] = mergeProgress(id, loadProgressLocal(id), cloud[id]);
+      updateProgressLocal(id, merged[id]);
+    });
+
+    await ref.set({ progress: merged, lastUpdated: new Date() }, { merge: true });
+  } catch (e) {
+    console.error('[QueryReal] Synchronisation impossible :', e);
+  }
 }

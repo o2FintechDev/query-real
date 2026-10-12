@@ -1,7 +1,5 @@
 /* ============================================================
    FIREBASE CONFIGURATION & AUTHENTICATION
-   Mode dégradé : si Firebase ne se charge pas, l'app reste
-   utilisable en local (localStorage) sans page de connexion.
    ============================================================ */
 
 const firebaseConfig = {
@@ -13,59 +11,60 @@ const firebaseConfig = {
   appId: "1:660115641040:web:c859eba688df22a0c8c4d5"
 };
 
-let auth = null;
-let db = null;
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+// ============================================================
+// AUTH STATE & USER MANAGEMENT
+// ============================================================
 let currentUser = null;
 
-try {
-  if (typeof firebase === 'undefined') {
-    throw new Error('SDK Firebase non chargé (CDN bloqué ou lent ?)');
+auth.onAuthStateChanged(async (user) => {
+  currentUser = user;
+  if (user) {
+    console.log("✅ Utilisateur connecté :", user.email || user.uid);
+    // On attend la progression du COMPTE avant d'afficher quoi que ce soit :
+    // sinon les niveaux sont calculés sur un cache vide (bug téléphone).
+    await initProgressForUser(user);
+    showPage('home');
+    if (typeof updateLevelsPageUI === 'function') updateLevelsPageUI();
+  } else {
+    console.log("🔐 Aucun utilisateur connecté");
+    clearProgressCache();
+    showPage('auth');
   }
-  firebase.initializeApp(firebaseConfig);
-  auth = firebase.auth();
-  db = firebase.firestore();
-} catch (e) {
-  console.warn('⚠️ Firebase indisponible, mode local uniquement :', e.message);
-}
-
-if (auth) {
-  auth.onAuthStateChanged((user) => {
-    currentUser = user;
-    if (user) {
-      console.log('✅ User logged in:', user.email);
-      showPage('home');
-      syncProgressFromFirestore().then(updateLevelsPageUI);
-    } else {
-      console.log('🔐 No user logged in');
-      showPage('auth');
-    }
-  });
-} else {
-  // Pas de Firebase : on va directement à l'accueil, progression locale
-  document.addEventListener('DOMContentLoaded', () => showPage('home'));
-}
+});
 
 // ============================================================
 // AUTHENTICATION FUNCTIONS
 // ============================================================
-async function signInWithGoogle() {
-  if (!auth) return alert('Connexion indisponible pour le moment.');
+// Sur mobile, les popups sont souvent bloquées : repli sur une redirection.
+async function signInWithProvider(provider, label) {
   try {
-    await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+    await auth.signInWithPopup(provider);
   } catch (error) {
-    console.error('❌ Google sign-in failed:', error);
-    alert('Erreur Google: ' + error.message);
+    const fallbackCodes = [
+      'auth/popup-blocked',
+      'auth/operation-not-supported-in-environment',
+      'auth/web-storage-unsupported'
+    ];
+    if (fallbackCodes.includes(error.code)) {
+      await auth.signInWithRedirect(provider);
+      return;
+    }
+    if (error.code === 'auth/popup-closed-by-user') return;
+    console.error('❌ Connexion ' + label + ' échouée :', error);
+    alert('Erreur ' + label + ' : ' + error.message);
   }
 }
 
-async function signInWithGitHub() {
-  if (!auth) return alert('Connexion indisponible pour le moment.');
-  try {
-    await auth.signInWithPopup(new firebase.auth.GithubAuthProvider());
-  } catch (error) {
-    console.error('❌ GitHub sign-in failed:', error);
-    alert('Erreur GitHub: ' + error.message);
-  }
+function signInWithGoogle() {
+  return signInWithProvider(new firebase.auth.GoogleAuthProvider(), 'Google');
+}
+
+function signInWithGitHub() {
+  return signInWithProvider(new firebase.auth.GithubAuthProvider(), 'GitHub');
 }
 
 async function signUp(email, password, passwordConfirm) {
@@ -88,20 +87,15 @@ async function signUp(email, password, passwordConfirm) {
 
     const result = await auth.createUserWithEmailAndPassword(email, password);
 
+    // merge:true → ne jamais écraser la progression créée par initProgressForUser
     await db.collection('users').doc(result.user.uid).set({
       email: email,
-      createdAt: new Date(),
-      progress: {
-        beginner:     { challengeIndex: 0, completed: [], answers: [] },
-        intermediate: { challengeIndex: 0, completed: [], answers: [] },
-        advanced:     { challengeIndex: 0, completed: [], answers: [] },
-        expert:       { challengeIndex: 0, completed: [], answers: [] },
-        mega:         { challengeIndex: 0, completed: [], answers: [] }
-      }
-    });
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
 
     msgBox.textContent = '✅ Compte créé ! Bienvenue.';
     msgBox.style.color = '#3fb950';
+    // La redirection vers l'accueil est gérée par onAuthStateChanged
   } catch (error) {
     msgBox.textContent = '❌ ' + (error.message || 'Erreur lors de la création du compte');
     msgBox.style.color = '#f85149';
@@ -125,10 +119,8 @@ async function logIn(email, password) {
 }
 
 async function logOut() {
-  if (!auth) return showPage('home');
   try {
     await auth.signOut();
-    currentUser = null;
   } catch (error) {
     console.error('Logout error:', error);
   }
@@ -146,6 +138,8 @@ function switchAuthMode(mode) {
   const isLogin = mode === 'login';
   loginForm.style.display = isLogin ? 'block' : 'none';
   signupForm.style.display = isLogin ? 'none' : 'block';
+  loginTab.classList.toggle('active', isLogin);
+  signupTab.classList.toggle('active', !isLogin);
   loginTab.style.borderBottomColor = isLogin ? '#58a6ff' : 'transparent';
   signupTab.style.borderBottomColor = isLogin ? 'transparent' : '#58a6ff';
 }

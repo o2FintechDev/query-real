@@ -20,6 +20,18 @@ const db = firebase.firestore();
 // ============================================================
 let currentUser = null;
 
+// Mode invité : on joue sans compte, la progression reste en mémoire
+// (perdue à la fermeture de l'onglet). Si l'invité se connecte ensuite,
+// sa progression est rattachée au compte (voir initProgressForUser).
+let isGuest = false;
+
+function startGuestMode() {
+  isGuest = true;
+  if (typeof closeModal === 'function') closeModal('guest-modal');
+  showPage('home');
+  if (typeof updateLevelsPageUI === 'function') updateLevelsPageUI();
+}
+
 auth.onAuthStateChanged(async (user) => {
   currentUser = user;
   if (user) {
@@ -27,14 +39,21 @@ auth.onAuthStateChanged(async (user) => {
     // On attend la progression du COMPTE avant d'afficher quoi que ce soit :
     // sinon les niveaux sont calculés sur un cache vide (bug téléphone).
     await initProgressForUser(user);
+    isGuest = false;
     showPage('home');
     if (typeof updateLevelsPageUI === 'function') updateLevelsPageUI();
   } else {
     console.log("🔐 Aucun utilisateur connecté");
+    if (isGuest) return; // l'invité continue de jouer
     clearProgressCache();
     showPage('auth');
   }
 });
+
+// Depuis le mode invité : retour à l'écran de connexion sans perdre la partie
+function goToLogin() {
+  showPage('auth');
+}
 
 // ============================================================
 // AUTHENTICATION FUNCTIONS
@@ -50,6 +69,12 @@ async function signInWithProvider(provider, label) {
       'auth/web-storage-unsupported'
     ];
     if (fallbackCodes.includes(error.code)) {
+      // La redirection recharge la page : on confie la partie de l'invité
+      // à la session de l'onglet pour la rattacher au compte au retour.
+      if (isGuest) {
+        try { sessionStorage.setItem(GUEST_HANDOFF_KEY, JSON.stringify(progressCache)); } catch (e) { /* ignore */ }
+      }
+      window.__qrRedirecting = true; // pas d'alerte « quitter la page » ici
       await auth.signInWithRedirect(provider);
       return;
     }

@@ -15,6 +15,7 @@
 const LEGACY_PROGRESS_KEY = 'queryreal_progress_v4';   // ancienne clé, non liée au compte
 const PROGRESS_KEY_PREFIX = 'queryreal_progress_v5_';  // + uid
 const SYNC_TIMEOUT = 8000;
+const GUEST_HANDOFF_KEY = 'queryreal_guest_handoff';  // sessionStorage, uniquement le temps d'une redirection de connexion
 
 let progressCache = {};
 let progressUnsubscribe = null;
@@ -107,8 +108,18 @@ async function initProgressForUser(user) {
   stopProgressSync();
   var uid = user.uid;
 
+  // 0. Partie jouée en mode invité juste avant la connexion
+  //    (en mémoire, ou confiée à sessionStorage si la connexion a rechargé la page)
+  var guestProgress = (typeof isGuest !== 'undefined' && isGuest) ? progressCache : null;
+  try {
+    var handoff = JSON.parse(sessionStorage.getItem(GUEST_HANDOFF_KEY));
+    if (handoff) guestProgress = mergeAll(guestProgress || {}, handoff);
+    sessionStorage.removeItem(GUEST_HANDOFF_KEY);
+  } catch (e) { /* ignore */ }
+
   // 1. Cache local de CE compte
   var merged = mergeAll({}, readLocal(uid));
+  mergeAll(merged, guestProgress);
 
   // 2. Ancienne progression locale (avant v5, pas liée au compte) :
   //    on la rattache au compte connecté une seule fois.

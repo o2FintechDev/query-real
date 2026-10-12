@@ -6,9 +6,21 @@
   <meta name="theme-color" content="#080c10" />
   <title>QueryReal — Apprendre le SQL</title>
 
+  <script>
+    // Thème appliqué avant l'affichage (évite un flash de couleur)
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem('queryreal_theme'); } catch (e) {}
+      if (!t) t = window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
+
   <script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-app-compat.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-auth-compat.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-firestore-compat.min.js"></script>
+  <!-- Capture d'écran de la page pour le formulaire de signalement -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
 
   <style>
     :root {
@@ -25,6 +37,10 @@
       --c-expert:       #f0883e;
       --c-mega:         #bc8cff;
       --c-error:        #f85149;
+      --surface-2:      #0f1d2c;
+      --text-strong:    #ffffff;
+      --on-accent:      #080c10;
+      --shadow:         0 8px 30px rgba(0,0,0,.35);
       --gutter: 24px;
       --safe-top: env(safe-area-inset-top, 0px);
       --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -51,7 +67,7 @@
 
     /* ── Boutons communs ── */
     .btn-primary {
-      background: var(--c-intermediate); color: #080c10; border: none; border-radius: 8px;
+      background: var(--c-intermediate); color: var(--on-accent); border: none; border-radius: 8px;
       font-family: var(--mono); font-weight: 700; cursor: pointer; transition: opacity .15s;
     }
     .btn-primary:hover { opacity: .85; }
@@ -141,7 +157,7 @@
       color: var(--muted); border: 1px solid var(--border); border-radius: 20px; padding: 4px 14px; margin-bottom: 28px;
     }
     .hero h1 { font-family: var(--mono); font-size: clamp(2.8rem, 9vw, 5.5rem); font-weight: 700; line-height: 1; letter-spacing: -2px; margin-bottom: 16px; }
-    .query { color: #ffffff; }
+    .query { color: var(--text-strong); }
     .real  { color: var(--c-intermediate); }
     .hero-sub { font-size: 1.05rem; color: var(--muted); max-width: 480px; line-height: 1.7; margin-bottom: 44px; }
     .concept-grid {
@@ -225,7 +241,7 @@
       border-left: 2px solid var(--c-advanced); background: rgba(210,153,34,.07); border-radius: 0 6px 6px 0;
     }
 
-    .db-status { font-family: var(--mono); font-size: .75rem; margin-bottom: 12px; color: var(--muted); }
+    .db-status { font-family: var(--mono); font-size: .75rem; margin-bottom: 12px; color: var(--muted); overflow-wrap: anywhere; }
     .db-status.ok { color: var(--c-beginner); }
     .db-status.warn { color: var(--c-advanced); }
     .db-status.err { color: var(--c-error); }
@@ -244,7 +260,7 @@
     .game-actions { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
     .btn-run { background: var(--level-color, var(--c-intermediate)); padding: 10px 24px; font-size: .88rem; }
     .btn-next {
-      background: var(--c-beginner); color: #080c10; font-family: var(--mono); font-size: .85rem;
+      background: var(--c-beginner); color: var(--on-accent); font-family: var(--mono); font-size: .85rem;
       font-weight: 700; border: none; border-radius: 8px; padding: 10px 20px; cursor: pointer; display: none;
     }
 
@@ -264,7 +280,7 @@
     .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; max-height: 60vh; overflow-y: auto; }
     .result-table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: .82rem; }
     .result-table th, .result-table td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; white-space: nowrap; overflow-wrap: normal; }
-    .result-table th { color: var(--c-intermediate); background: #0f1d2c; position: sticky; top: 0; }
+    .result-table th { color: var(--c-intermediate); background: var(--surface-2); position: sticky; top: 0; }
     .result-table em { color: var(--muted); }
 
     /* ── PANNEAUX D'AIDE ── */
@@ -377,9 +393,210 @@
       .result-box { padding: 14px; }
       .result-table { font-size: .76rem; }
     }
+
+    /* =========================================================
+       THÈME CLAIR (bouton ☀/🌙 — mémorisé sur l'appareil)
+       ========================================================= */
+    :root[data-theme="light"] {
+      --bg:        #f6f8fa;
+      --surface:   #ffffff;
+      --surface-2: #eef3f8;
+      --border:    #d0d9e2;
+      --text:      #1f2a36;
+      --text-strong: #0d1117;
+      --muted:     #57677a;
+      --on-accent: #ffffff;
+      --c-beginner:     #1a7f37;
+      --c-intermediate: #0969da;
+      --c-advanced:     #9a6700;
+      --c-expert:       #bc4c00;
+      --c-mega:         #8250df;
+      --c-error:        #cf222e;
+      --shadow: 0 8px 30px rgba(31,42,54,.12);
+    }
+    :root[data-theme="light"] .social-btn.light { border-color: var(--border); }
+    :root[data-theme="light"] .hint-text { background: rgba(154,103,0,.08); }
+    body { transition: background-color .25s ease, color .25s ease; }
+
+    .icon-btn {
+      background: transparent; border: 1px solid var(--border); color: var(--muted);
+      border-radius: 8px; width: 38px; height: 38px; cursor: pointer; font-size: 1rem;
+      display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+      transition: color .15s, border-color .15s, transform .12s;
+    }
+    .icon-btn:hover { color: var(--text); border-color: var(--muted); }
+    .game-header-right { display: flex; align-items: center; gap: 10px; }
+
+    /* ── Micro-interactions ── */
+    .btn-primary, .btn-ghost, .btn-next, .logout-btn, .icon-btn, .level-btn, .step, .social-btn {
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-primary:active, .btn-ghost:active, .btn-next:active, .icon-btn:active, .social-btn:active { transform: scale(.97); }
+    .level-btn:not(.locked):hover { border-color: var(--lvl, var(--muted)); box-shadow: var(--shadow); }
+    .concept-card { transition: transform .2s ease, border-color .2s ease; }
+    @media (hover: hover) {
+      .concept-card:hover { transform: translateY(-3px); border-color: var(--muted); }
+    }
+    .btn-run.is-running { pointer-events: none; opacity: .7; }
+
+    /* Barre de progression par niveau */
+    .level-meter { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; margin-top: 10px; }
+    .level-meter > span { display: block; height: 100%; width: 0; background: var(--lvl, var(--c-beginner)); transition: width .5s ease; }
+    .level-btn.locked .level-meter, .level-btn.coming-soon .level-meter { display: none; }
+
+    /* Retour visuel sur le résultat */
+    @keyframes pop   { 0% { transform: scale(.985); } 60% { transform: scale(1.01); } 100% { transform: scale(1); } }
+    @keyframes shake { 0%,100% { transform: translateX(0); } 20%,60% { transform: translateX(-6px); } 40%,80% { transform: translateX(6px); } }
+    .result-box.anim-ok  { animation: pop .35s ease; box-shadow: 0 0 0 3px rgba(63,185,80,.15); }
+    .result-box.anim-err { animation: shake .35s ease; }
+
+    /* Éditeur : halo coloré selon le niveau */
+    textarea#sql-input:focus { border-color: var(--level-color, var(--c-intermediate)); box-shadow: 0 0 0 3px var(--level-glow, rgba(88,166,255,.2)); }
+
+    /* Confettis de fin de niveau */
+    .confetti { position: fixed; top: -12px; width: 8px; height: 14px; border-radius: 2px; z-index: 80; pointer-events: none;
+      animation: confetti-fall linear forwards; }
+    @keyframes confetti-fall { to { transform: translateY(105vh) rotate(720deg); opacity: .6; } }
+
+    /* =========================================================
+       MODE INVITÉ
+       ========================================================= */
+    .guest-link {
+      display: block; width: 100%; margin-top: 22px; padding: 12px; background: transparent;
+      border: 1px dashed var(--border); border-radius: 8px; color: var(--muted); cursor: pointer;
+      font-size: .88rem; transition: color .15s, border-color .15s;
+    }
+    .guest-link:hover { color: var(--text); border-color: var(--muted); }
+    .guest-banner {
+      display: none; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap;
+      padding: calc(8px + var(--safe-top)) 16px 8px; font-size: .8rem; text-align: center;
+      background: rgba(210,153,34,.12); color: var(--text); border-bottom: 1px solid rgba(210,153,34,.35);
+    }
+    .guest-banner.show { display: flex; }
+    .guest-banner button {
+      background: transparent; border: 1px solid var(--c-advanced); color: var(--c-advanced);
+      border-radius: 6px; padding: 4px 10px; font-size: .78rem; cursor: pointer; font-weight: 600;
+    }
+
+    /* =========================================================
+       MODALES (invité + signalement)
+       ========================================================= */
+    .modal {
+      position: fixed; inset: 0; z-index: 90; display: none; align-items: center; justify-content: center;
+      padding: 16px; background: rgba(0,0,0,.6); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+    }
+    .modal.open { display: flex; animation: fade-in .15s ease; }
+    @keyframes fade-in { from { opacity: 0; } }
+    .modal-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow);
+      width: 100%; max-width: 560px; max-height: calc(100dvh - 32px); display: flex; flex-direction: column;
+      animation: rise .2s ease;
+    }
+    @keyframes rise { from { transform: translateY(12px); opacity: 0; } }
+    .modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px 10px; }
+    .modal-head h3 { font-family: var(--mono); font-size: 1.05rem; }
+    .modal-body { padding: 4px 20px 16px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    .modal-body p { color: var(--muted); font-size: .88rem; line-height: 1.6; margin-bottom: 10px; }
+    .modal-foot {
+      display: flex; gap: 10px; justify-content: space-between; align-items: center;
+      padding: 14px 20px calc(14px + var(--safe-bottom)); border-top: 1px solid var(--border);
+    }
+    .modal-foot .spacer { flex: 1; }
+    .modal-foot .btn-primary { padding: 10px 20px; font-size: .88rem; }
+
+    /* Signalement : bouton flottant */
+    .report-fab {
+      position: fixed; right: 18px; bottom: calc(18px + var(--safe-bottom)); z-index: 70;
+      display: none; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 999px;
+      background: var(--surface); color: var(--text); border: 1px solid var(--border); box-shadow: var(--shadow);
+      font-size: .82rem; font-weight: 600; cursor: pointer; transition: transform .15s, border-color .15s;
+    }
+    .report-fab.show { display: inline-flex; }
+    .report-fab:hover { transform: translateY(-2px); border-color: var(--c-intermediate); }
+
+    /* Signalement : étapes */
+    .wiz-progress { display: flex; gap: 6px; padding: 0 20px 6px; }
+    .wiz-progress span { flex: 1; height: 4px; border-radius: 2px; background: var(--border); transition: background .2s; }
+    .wiz-progress span.on { background: var(--c-intermediate); }
+    .wiz-step-label { font-family: var(--mono); font-size: .7rem; color: var(--muted); padding: 0 20px 6px; text-transform: uppercase; letter-spacing: 1px; }
+    .wiz-pane { display: none; }
+    .wiz-pane.active { display: block; }
+    .wiz-q { font-size: .92rem; font-weight: 600; margin: 14px 0 8px; }
+    .wiz-q:first-child { margin-top: 4px; }
+    .wiz-q small { font-weight: 400; color: var(--muted); }
+
+    .choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .choice {
+      position: relative; display: flex; align-items: flex-start; gap: 10px; padding: 11px 12px;
+      border: 1px solid var(--border); border-radius: 10px; cursor: pointer; background: var(--bg);
+      font-size: .85rem; line-height: 1.35; transition: border-color .15s, background .15s;
+    }
+    .choice:hover { border-color: var(--muted); }
+    .choice input { margin-top: 2px; accent-color: var(--c-intermediate); flex-shrink: 0; width: 16px; height: 16px; }
+    .choice .c-ico { font-size: 1.1rem; line-height: 1; }
+    .choice .c-sub { display: block; color: var(--muted); font-size: .75rem; margin-top: 2px; }
+    .choice:has(input:checked), .choice.checked { border-color: var(--c-intermediate); background: rgba(88,166,255,.10); }
+    .choice-grid.cols-1 { grid-template-columns: 1fr; }
+
+    .chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip { position: relative; }
+    .chip input { position: absolute; opacity: 0; pointer-events: none; }
+    .chip span {
+      display: inline-block; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--border);
+      font-size: .8rem; cursor: pointer; background: var(--bg); transition: all .15s;
+    }
+    .chip input:checked + span { border-color: var(--c-intermediate); color: var(--c-intermediate); background: rgba(88,166,255,.10); }
+    .chip input:focus-visible + span { outline: 2px solid var(--c-intermediate); outline-offset: 2px; }
+
+    .field { width: 100%; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text); font-family: var(--sans); font-size: .9rem; line-height: 1.5; }
+    textarea.field { resize: vertical; min-height: 84px; }
+    .field:focus { outline: none; border-color: var(--c-intermediate); }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .counter { font-size: .7rem; color: var(--muted); text-align: right; margin-top: 3px; }
+    .context-box { font-family: var(--mono); font-size: .72rem; color: var(--muted); background: var(--bg);
+      border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 130px; overflow-y: auto; }
+    .check-line { display: flex; gap: 8px; align-items: flex-start; font-size: .84rem; margin: 10px 0; cursor: pointer; }
+    .check-line input { accent-color: var(--c-intermediate); margin-top: 3px; }
+    .wiz-error { color: var(--c-error); font-size: .8rem; min-height: 18px; margin-top: 8px; }
+
+    .shot-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .shot-preview { margin-top: 12px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; position: relative; }
+    .shot-preview img { display: block; width: 100%; max-height: 260px; object-fit: contain; background: var(--bg); }
+    .shot-preview button { position: absolute; top: 8px; right: 8px; }
+    .shot-meta { font-size: .72rem; color: var(--muted); padding: 6px 10px; border-top: 1px solid var(--border); }
+    .recap { font-size: .82rem; line-height: 1.6; border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; background: var(--bg); }
+    .recap dt { color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .8px; margin-top: 8px; }
+    .recap dt:first-child { margin-top: 0; }
+    .recap dd { overflow-wrap: anywhere; }
+    .done-state { text-align: center; padding: 24px 8px; }
+    .done-state .big { font-size: 2.6rem; margin-bottom: 10px; }
+
+    @media (max-width: 640px) {
+      .report-fab { padding: 10px 14px; right: 12px; bottom: calc(12px + var(--safe-bottom)); font-size: .78rem; }
+      .modal { padding: 0; align-items: flex-end; }
+      .modal-card { max-width: none; max-height: 92dvh; border-radius: 16px 16px 0 0; border-bottom: none; }
+      .choice-grid, .field-row { grid-template-columns: 1fr; }
+      .field { font-size: 16px; } /* pas de zoom auto iOS */
+      .stepper { flex-wrap: nowrap; overflow-x: auto; scroll-snap-type: x proximity; padding: 4px 2px 8px; scrollbar-width: none; }
+      .stepper::-webkit-scrollbar { display: none; }
+      .step { scroll-snap-align: center; }
+      #page-game { padding-bottom: calc(80px + var(--safe-bottom)); } /* place pour le bouton flottant */
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+      .confetti { display: none; }
+    }
   </style>
 </head>
 <body>
+
+<!-- Bandeau du mode invité -->
+<div class="guest-banner" id="guest-banner" role="status">
+  <span>👤 Mode invité : votre progression <strong>ne sera pas sauvegardée</strong> si vous quittez le jeu.</span>
+  <button type="button" onclick="goToLogin()">Créer un compte / se connecter</button>
+</div>
 
 <!-- ============ CHARGEMENT (pendant la vérification du compte) ============ -->
 <div id="page-loading" class="page active">
@@ -427,6 +644,10 @@
     </form>
 
     <div id="auth-message" role="status" aria-live="polite"></div>
+
+    <button type="button" class="guest-link" id="btn-guest">
+      Continuer sans compte →
+    </button>
   </div>
 </div>
 
@@ -435,7 +656,8 @@
   <div class="topbar">
     <div class="topbar-right">
       <span class="user-email" id="home-user-email"></span>
-      <button class="logout-btn" onclick="logOut()">Déconnexion</button>
+      <button class="icon-btn theme-toggle" type="button" aria-label="Changer de thème">🌙</button>
+      <button class="logout-btn account-btn" onclick="accountAction()">Déconnexion</button>
     </div>
   </div>
   <div class="hero">
@@ -472,7 +694,8 @@
     <button class="btn-ghost" id="btn-back-home">← Accueil</button>
     <div class="topbar-right">
       <span class="user-email" id="current-user-email"></span>
-      <button class="logout-btn" onclick="logOut()">Déconnexion</button>
+      <button class="icon-btn theme-toggle" type="button" aria-label="Changer de thème">🌙</button>
+      <button class="logout-btn account-btn" onclick="accountAction()">Déconnexion</button>
     </div>
   </div>
 
@@ -485,43 +708,48 @@
   </div>
 
   <div class="levels-list">
-    <button class="level-btn" id="btn-beginner" data-level="beginner">
+    <button class="level-btn" id="btn-beginner" data-level="beginner" style="--lvl:#3fb950">
       <span class="level-dot" style="background:#3fb950"></span>
       <div class="level-info">
         <div class="name" style="color:#3fb950">Débutant <span class="level-progress" id="progress-beginner"></span></div>
         <div class="desc">SELECT, WHERE, ORDER BY, LIMIT : vos premières requêtes.</div>
+        <div class="level-meter"><span></span></div>
       </div>
       <span class="level-arrow">→</span>
     </button>
-    <button class="level-btn" id="btn-intermediate" data-level="intermediate">
+    <button class="level-btn" id="btn-intermediate" data-level="intermediate" style="--lvl:#58a6ff">
       <span class="level-dot" style="background:#58a6ff"></span>
       <div class="level-info">
         <div class="name" style="color:#58a6ff">Intermédiaire <span class="level-progress" id="progress-intermediate"></span></div>
         <div class="desc">GROUP BY, JOIN, agrégations et tables temporaires.</div>
+        <div class="level-meter"><span></span></div>
       </div>
       <span class="level-arrow">→</span>
     </button>
-    <button class="level-btn" id="btn-advanced" data-level="advanced">
+    <button class="level-btn" id="btn-advanced" data-level="advanced" style="--lvl:#d29922">
       <span class="level-dot" style="background:#d29922"></span>
       <div class="level-info">
         <div class="name" style="color:#d29922">Avancé <span class="level-progress" id="progress-advanced"></span></div>
         <div class="desc">Sous-requêtes, CTE et fonctions de fenêtrage.</div>
+        <div class="level-meter"><span></span></div>
       </div>
       <span class="level-arrow">→</span>
     </button>
-    <button class="level-btn" id="btn-expert" data-level="expert">
+    <button class="level-btn" id="btn-expert" data-level="expert" style="--lvl:#f0883e">
       <span class="level-dot" style="background:#f0883e"></span>
       <div class="level-info">
         <div class="name" style="color:#f0883e">Expert <span class="level-progress" id="progress-expert"></span></div>
         <div class="desc">Analyses temporelles et requêtes sur de gros volumes.</div>
+        <div class="level-meter"><span></span></div>
       </div>
       <span class="level-arrow">→</span>
     </button>
-    <button class="level-btn coming-soon" id="btn-mega" data-level="mega">
+    <button class="level-btn coming-soon" id="btn-mega" data-level="mega" style="--lvl:#bc8cff">
       <span class="level-dot" style="background:#bc8cff"></span>
       <div class="level-info">
         <div class="name" style="color:#bc8cff">Méga Expert <span class="level-progress" id="progress-mega"></span></div>
         <div class="desc">Détection d'anomalies. Bientôt disponible.</div>
+        <div class="level-meter"><span></span></div>
       </div>
       <span class="level-arrow">→</span>
     </button>
@@ -532,7 +760,10 @@
 <div id="page-game" class="page">
   <div class="game-header">
     <button class="btn-ghost" id="btn-back-levels">← Niveaux</button>
-    <span class="game-level-badge" id="game-badge">Débutant</span>
+    <div class="game-header-right">
+      <button class="icon-btn theme-toggle" type="button" aria-label="Changer de thème">🌙</button>
+      <span class="game-level-badge" id="game-badge">Débutant</span>
+    </div>
   </div>
 
   <nav class="stepper" id="stepper" aria-label="Défis du niveau"></nav>
@@ -592,6 +823,47 @@
   <div class="drawer-backdrop" id="drawer-backdrop"></div>
 </div>
 
+<!-- ============ MODALE : MODE INVITÉ ============ -->
+<div class="modal" id="guest-modal" role="dialog" aria-modal="true" aria-labelledby="guest-title">
+  <div class="modal-card" style="max-width:440px">
+    <div class="modal-head">
+      <h3 id="guest-title">Jouer sans compte</h3>
+      <button class="side-panel-close" type="button" onclick="closeModal('guest-modal')" aria-label="Fermer">✕</button>
+    </div>
+    <div class="modal-body">
+      <p>Vous avez accès à tous les défis, sans inscription.</p>
+      <p>⚠️ <strong>Rien n'est sauvegardé</strong> : si vous fermez ou rechargez la page, votre progression est perdue.</p>
+      <p>Vous pourrez créer un compte à tout moment : la partie en cours y sera alors rattachée.</p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-ghost" type="button" onclick="closeModal('guest-modal')">Annuler</button>
+      <button class="btn-primary" type="button" onclick="startGuestMode()">Jouer en invité →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SIGNALEMENT ============ -->
+<button class="report-fab" id="report-fab" type="button" aria-label="Envoyer une proposition ou signaler un problème">
+  <span aria-hidden="true">💬</span><span class="fab-label">Proposition / problème</span>
+</button>
+
+<div class="modal" id="report-modal" role="dialog" aria-modal="true" aria-labelledby="report-title">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3 id="report-title">Proposition / problème</h3>
+      <button class="side-panel-close" type="button" id="report-close" aria-label="Fermer">✕</button>
+    </div>
+    <div class="wiz-progress" id="wiz-progress" aria-hidden="true"></div>
+    <div class="wiz-step-label" id="wiz-step-label"></div>
+    <div class="modal-body" id="report-body"></div>
+    <div class="modal-foot" id="report-foot">
+      <button class="btn-ghost" type="button" id="wiz-prev">← Retour</button>
+      <span class="spacer"></span>
+      <button class="btn-primary" type="button" id="wiz-next">Continuer →</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
@@ -601,6 +873,7 @@
 <script src="backend-expert.js"></script>
 <script src="firebase-config.js"></script>
 <script src="firebase-storage.js"></script>
+<script src="feedback.js"></script>
 
 <script>
 /* ============================================================
@@ -1022,14 +1295,83 @@ function toast(msg, kind) {
   toast._t = setTimeout(() => { el.className = 'toast'; }, 3200);
 }
 
-function setFeedback(kind, html) {
+var lastFeedbackText = '';  // dernier retour affiché, joint au signalement
+
+function setFeedback(kind, html, animate) {
   const box = $('result-box');
   box.className = 'result-box ' + (kind || '');
   box.innerHTML = html;
+  lastFeedbackText = (box.innerText || '').slice(0, 1500);
+  if (animate !== false && (kind === 'ok' || kind === 'err')) {
+    void box.offsetWidth; // relance l'animation à chaque exécution
+    box.classList.add(kind === 'ok' ? 'anim-ok' : 'anim-err');
+  }
+}
+
+/* ── Thème clair / sombre ── */
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  document.querySelectorAll('.theme-toggle').forEach(b => {
+    b.textContent = t === 'light' ? '🌙' : '☀️';
+    b.setAttribute('aria-label', t === 'light' ? 'Passer en thème sombre' : 'Passer en thème clair');
+  });
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', t === 'light' ? '#f6f8fa' : '#080c10');
+}
+function toggleTheme() {
+  const t = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+  try { localStorage.setItem('queryreal_theme', t); } catch (e) { /* ignore */ }
+  applyTheme(t);
+}
+
+/* ── Modales génériques ── */
+function openModal(id) {
+  $(id).classList.add('open');
+  document.body.style.overflow = 'hidden';
+  const f = $(id).querySelector('button, input, textarea, select');
+  if (f) setTimeout(() => f.focus(), 50);
+}
+function closeModal(id) {
+  $(id).classList.remove('open');
+  if (!document.querySelector('.modal.open')) document.body.style.overflow = '';
+}
+
+/* ── Compte / invité ── */
+function accountAction() {
+  if (typeof isGuest !== 'undefined' && isGuest) goToLogin();
+  else logOut();
+}
+function guestHasProgress() {
+  return Object.keys(levels).some(id => {
+    const p = getProgressSync(id);
+    return p.completed.some(Boolean) || p.answers.some(a => a);
+  });
+}
+
+/* ── Confettis de fin de niveau ── */
+function celebrate() {
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const colors = ['#3fb950', '#58a6ff', '#d29922', '#f0883e', '#bc8cff'];
+  for (let i = 0; i < 60; i++) {
+    const c = document.createElement('span');
+    c.className = 'confetti';
+    c.style.left = Math.random() * 100 + 'vw';
+    c.style.background = colors[i % colors.length];
+    c.style.animationDuration = (1.8 + Math.random() * 1.6) + 's';
+    c.style.animationDelay = (Math.random() * .4) + 's';
+    document.body.appendChild(c);
+    setTimeout(() => c.remove(), 4000);
+  }
 }
 
 function hintLine(ch) {
-  return ch.hint ? '<br>💡 Un indice est disponible (bouton « Indice »).' : '';
+  return (ch.hint ? '<br>💡 Un indice est disponible (bouton « Indice »).' : '') + reportLine();
+}
+
+// Raccourci vers le formulaire de signalement, pré-réglé sur « Problème sur un défi »
+function reportLine() {
+  return '<br><span class="fb-muted">Vous pensez que votre requête est correcte ? ' +
+    '<a href="#" onclick="event.preventDefault(); openReport(\'query\')" style="color:var(--c-intermediate)">Signaler ce défi</a></span>';
 }
 
 function normalizeSqlQuotes(q) {
@@ -1114,6 +1456,10 @@ function showSuccess(kind, tableHtml) {
       ? `Le niveau « ${levels[nextId].label} » est débloqué.`
       : 'Bravo, vous avez terminé tous les niveaux disponibles !';
     title = `🎉 Niveau « ${lvl.label} » terminé ! ${nextTxt}`;
+    if (typeof isGuest !== 'undefined' && isGuest) {
+      title += '<br><span class="fb-muted">Mode invité : créez un compte pour garder cette progression.</span>';
+    }
+    celebrate();
   } else {
     title = `✅ Bravo ! Défi ${currentChallengeIndex + 1} validé.`;
   }
@@ -1247,6 +1593,13 @@ function closeDrawers() {
 function showPage(id) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   $('page-' + id).classList.add('active');
+
+  const guest = typeof isGuest !== 'undefined' && isGuest;
+  const inApp = id !== 'loading' && id !== 'auth';
+  $('guest-banner').classList.toggle('show', guest && inApp);
+  $('report-fab').classList.toggle('show', id !== 'loading');
+  document.querySelectorAll('.account-btn').forEach(b => { b.textContent = guest ? 'Se connecter' : 'Déconnexion'; });
+  $('btn-guest').textContent = guest ? '← Reprendre ma partie en invité' : 'Continuer sans compte →';
   if (id === 'home' || id === 'levels') {
     $('home-user-email').textContent = userLabel();
     $('current-user-email').textContent = userLabel();
@@ -1275,6 +1628,8 @@ function updateLevelsPageUI() {
     const completed = isLevelCompleted(id);
     btn.classList.toggle('locked', !unlocked);
     btn.classList.toggle('done', completed);
+    const meter = btn.querySelector('.level-meter > span');
+    if (meter) meter.style.width = Math.round(d / lvl.challenges.length * 100) + '%';
     badge.textContent = !unlocked ? '🔒' : (completed ? '✓ Terminé' : `${d} / ${lvl.challenges.length}`);
   });
 
@@ -1311,6 +1666,7 @@ function showGame(id) {
   badge.style.border = '1px solid ' + lvl.color;
 
   $('page-game').style.setProperty('--level-color', lvl.color);
+  $('page-game').style.setProperty('--level-glow', lvl.color + '33');
 
   showPage('game');
   renderChallenge();
@@ -1379,7 +1735,7 @@ function renderChallenge() {
   updateNavButtons();
 
   if (p.completed[i]) {
-    setFeedback('ok', '✅ Défi déjà validé. Vous pouvez le rejouer ou passer au suivant.');
+    setFeedback('ok', '✅ Défi déjà validé. Vous pouvez le rejouer ou passer au suivant.', false);
   } else {
     setFeedback('', 'Écrivez votre requête, puis exécutez-la.');
   }
@@ -1393,7 +1749,7 @@ function renderChallenge() {
 function runCreateTableChallenge(db, ch, q) {
   const target = ch.targetTable;
   const refTable = '__ref_' + target;
-  const internalErr = '❌ Erreur interne de validation. Signalez ce défi.';
+  const internalErr = '❌ Erreur interne de validation.' + reportLine();
 
   try { db.run(`DROP TABLE IF EXISTS ${target};`); } catch (e) { /* table absente : rien à faire */ }
 
@@ -1457,7 +1813,7 @@ function runQuery() {
   try { rRes = extractExec(db.exec(ch.reference)); }
   catch (e) {
     console.error('[QueryReal] Requête de référence échouée :', e);
-    return setFeedback('err', '❌ Erreur interne de validation. Signalez ce défi.');
+    return setFeedback('err', '❌ Erreur interne de validation.' + reportLine());
   }
 
   if (resultsMatch(uRes, rRes, !!ch.orderMatters)) {
@@ -1476,6 +1832,22 @@ function runQuery() {
    l'appelle une fois la progression du compte chargée)
    ============================================================ */
 document.addEventListener('DOMContentLoaded', () => {
+  applyTheme(document.documentElement.getAttribute('data-theme') || 'dark');
+  document.querySelectorAll('.theme-toggle').forEach(b => b.addEventListener('click', toggleTheme));
+
+  // Mode invité : confirmation la 1re fois, reprise directe ensuite
+  $('btn-guest').addEventListener('click', () => {
+    if (isGuest) { showPage('home'); updateLevelsPageUI(); }
+    else openModal('guest-modal');
+  });
+  // Alerte du navigateur si un invité quitte la page avec une partie en cours
+  window.addEventListener('beforeunload', e => {
+    if (isGuest && !window.__qrRedirecting && guestHasProgress()) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
+
   $('btn-choose-level').addEventListener('click', () => { updateLevelsPageUI(); showPage('levels'); });
   $('btn-back-home').addEventListener('click', () => showPage('home'));
   $('btn-back-levels').addEventListener('click', () => { updateLevelsPageUI(); showPage('levels'); });
@@ -1522,7 +1894,15 @@ document.addEventListener('DOMContentLoaded', () => {
   $('panel-database-close').addEventListener('click', closeDrawers);
   $('panel-tips-close').addEventListener('click', closeDrawers);
   $('drawer-backdrop').addEventListener('click', closeDrawers);
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawers(); });
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    const open = document.querySelector('.modal.open');
+    if (open) closeModal(open.id); else closeDrawers();
+  });
+  // Clic sur le fond d'une modale = fermeture
+  document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e => {
+    if (e.target === m) closeModal(m.id);
+  }));
 });
 </script>
 </body>
